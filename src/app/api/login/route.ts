@@ -1,3 +1,4 @@
+/* @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
@@ -38,30 +39,26 @@ async function generateSignature(
   data: string,
   secret: string,
 ): Promise<string> {
-  try {
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(secret);
-    const messageData = encoder.encode(data);
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(data);
 
-    // 导入密钥
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    );
+  // 导入密钥
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
 
-    // 生成签名
-    const signature = await crypto.subtle.sign('HMAC', key, messageData);
+  // 生成签名
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
 
-    // 转换为十六进制字符串
-    return Array.from(new Uint8Array(signature))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch {
-    return '';
-  }
+  // 转换为十六进制字符串
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 interface AuthData {

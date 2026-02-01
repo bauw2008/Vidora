@@ -58,7 +58,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   if (!mounted) {
     return (
       <div
-        className={`w-5 h-5 flex items-center justify-center cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded transition-colors ${className || 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]'}`}
+        className={`w-5 h-5 flex items-center justify-center cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded transition-colors ${className || 'text-gray-600 dark:text-gray-300'}`}
         aria-label='Toggle theme'
       />
     );
@@ -67,7 +67,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   return (
     <div
       onClick={toggleTheme}
-      className={`w-5 h-5 flex items-center justify-center cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded transition-colors ${className || 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]'}`}
+      className={`w-5 h-5 flex items-center justify-center cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded transition-colors ${className || 'text-gray-600 dark:text-gray-300'}`}
       aria-label='Toggle theme'
     >
       {resolvedTheme === 'dark' ? (
