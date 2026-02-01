@@ -1,6 +1,5 @@
 'use server';
 
-import CryptoJS from 'crypto-js';
 import { cookies } from 'next/headers';
 
 import { getConfig } from '@/lib/config';
@@ -18,9 +17,28 @@ const STORAGE_TYPE =
     | 'kvrocks'
     | undefined) || 'localstorage';
 
-// 使用 crypto-js 生成签名
-function generateSignature(data: string, secret: string): string {
-  return CryptoJS.HmacSHA256(data, secret).toString();
+// 生成签名
+async function generateSignature(
+  data: string,
+  secret: string,
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(data);
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 // 定义认证数据类型
@@ -33,12 +51,12 @@ interface AuthData {
 }
 
 // 生成认证Cookie（带签名）
-function generateAuthCookie(
+async function generateAuthCookie(
   username?: string,
   password?: string,
   role?: 'owner' | 'admin' | 'user',
   includePassword = false,
-): string {
+): Promise<string> {
   const authData: AuthData = { role: role || 'user' };
 
   if (includePassword && password) {
@@ -47,7 +65,7 @@ function generateAuthCookie(
 
   if (username && process.env.PASSWORD) {
     authData.username = username;
-    const signature = generateSignature(username, process.env.PASSWORD);
+    const signature = await generateSignature(username, process.env.PASSWORD);
     authData.signature = signature;
     authData.timestamp = Date.now();
   }
@@ -73,7 +91,7 @@ export async function loginAction(
       const envPassword = process.env.PASSWORD;
 
       if (!envPassword) {
-        const cookieValue = generateAuthCookie(
+        const cookieValue = await generateAuthCookie(
           undefined,
           password,
           'user',
@@ -94,7 +112,12 @@ export async function loginAction(
         return { error: '密码错误' };
       }
 
-      const cookieValue = generateAuthCookie(undefined, password, 'user', true);
+      const cookieValue = await generateAuthCookie(
+        undefined,
+        password,
+        'user',
+        true,
+      );
       const cookieStore = await cookies();
       cookieStore.set('auth', cookieValue, {
         path: '/',
@@ -122,7 +145,7 @@ export async function loginAction(
       await db.updateUserLoginStats(username, Date.now(), true);
       await db.updateLastActivity(username);
 
-      const cookieValue = generateAuthCookie(
+      const cookieValue = await generateAuthCookie(
         username,
         password,
         'owner',
@@ -152,7 +175,7 @@ export async function loginAction(
     await db.updateUserLoginStats(username, Date.now(), false);
     await db.updateLastActivity(username);
 
-    const cookieValue = generateAuthCookie(
+    const cookieValue = await generateAuthCookie(
       username,
       password,
       user?.role || 'user',
@@ -307,7 +330,12 @@ export async function registerAction(
     clearConfigCache();
 
     // 自动登录
-    const cookieValue = generateAuthCookie(username, password, 'user', false);
+    const cookieValue = await generateAuthCookie(
+      username,
+      password,
+      'user',
+      false,
+    );
     const cookieStore = await cookies();
     cookieStore.set('auth', cookieValue, {
       path: '/',

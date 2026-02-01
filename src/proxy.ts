@@ -1,9 +1,125 @@
 /* eslint-disable no-console */
 
-import CryptoJS from 'crypto-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
+
+// 信任网络配置缓存
+let trustedNetworkCache: { enabled: boolean; trustedIPs: string[] } | null =
+  null;
+let trustedNetworkCacheTime = 0;
+const CACHE_TTL = 86400000; // 24小时缓存
+
+// 获取客户端IP
+function getClientIP(request: NextRequest): string {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  return (
+    request.headers.get('x-real-ip') ||
+    request.headers.get('cf-connecting-ip') ||
+    'unknown'
+  );
+}
+
+// IP/CIDR匹配
+function isIPInCIDR(clientIP: string, cidr: string): boolean {
+  if (cidr === '*') return true;
+
+  const isClientIPv6 = clientIP.includes(':');
+  const isCIDRIPv6 = cidr.includes(':');
+  if (isClientIPv6 !== isCIDRIPv6) return false;
+
+  if (isCIDRIPv6) {
+    if (cidr.includes('/')) {
+      const [network] = cidr.split('/');
+      return clientIP
+        .toLowerCase()
+        .startsWith(network.toLowerCase().replace(/:+$/, ''));
+    }
+    return clientIP.toLowerCase() === cidr.toLowerCase();
+  }
+
+  if (cidr.includes('/')) {
+    const [network, maskStr] = cidr.split('/');
+    const mask = parseInt(maskStr, 10);
+    const networkParts = network.split('.').map(Number);
+    const clientParts = clientIP.split('.').map(Number);
+
+    if (clientParts.length !== 4 || networkParts.length !== 4) return false;
+
+    const networkInt =
+      (networkParts[0] << 24) |
+      (networkParts[1] << 16) |
+      (networkParts[2] << 8) |
+      networkParts[3];
+    const clientInt =
+      (clientParts[0] << 24) |
+      (clientParts[1] << 16) |
+      (clientParts[2] << 8) |
+      clientParts[3];
+    const maskInt = mask === 0 ? 0 : (~0 << (32 - mask)) >>> 0;
+
+    return (networkInt & maskInt) === (clientInt & maskInt);
+  }
+
+  return clientIP === cidr;
+}
+
+// 检查IP是否在信任网络
+function isIPTrusted(clientIP: string, trustedIPs: string[]): boolean {
+  return trustedIPs.some((ip) => isIPInCIDR(clientIP, ip.trim()));
+}
+
+// 生成信任网络自动登录cookie
+function generateTrustedAuthCookie(): NextResponse {
+  const response = NextResponse.next();
+  const username = process.env.USERNAME || 'admin';
+
+  const authInfo = {
+    username,
+    trustedNetwork: true,
+    timestamp: Date.now(),
+    loginTime: Date.now(),
+    role: 'owner' as const,
+  };
+
+  response.cookies.set('auth', JSON.stringify(authInfo), {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+
+  return response;
+}
+
+// 获取信任网络配置
+async function getTrustedNetworkConfig(
+): Promise<{ enabled: boolean; trustedIPs: string[] } | null> {
+  const now = Date.now();
+
+  if (trustedNetworkCache && now - trustedNetworkCacheTime < CACHE_TTL) {
+    return trustedNetworkCache.enabled ? trustedNetworkCache : null;
+  }
+
+  // 环境变量优先
+  const envIPs = process.env.TRUSTED_NETWORK_IPS;
+  if (envIPs) {
+    trustedNetworkCache = {
+      enabled: true,
+      trustedIPs: envIPs
+        .split(',')
+        .map((ip) => ip.trim())
+        .filter(Boolean),
+    };
+    trustedNetworkCacheTime = now;
+    return trustedNetworkCache;
+  }
+
+  return null;
+}
 
 // 在线状态配置
 const ONLINE_TIMEOUT = 30 * 60 * 1000; // 30分钟超时（毫秒）
@@ -75,6 +191,28 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // 信任网络模式：检查IP是否在信任网络
+  const trustedNetworkConfig = await getTrustedNetworkConfig();
+  if (
+    trustedNetworkConfig?.enabled &&
+    trustedNetworkConfig.trustedIPs.length > 0
+  ) {
+    const clientIP = getClientIP(request);
+    if (isIPTrusted(clientIP, trustedNetworkConfig.trustedIPs)) {
+      console.log(`[TrustNetwork] Auto-login for IP: ${clientIP}`);
+      const existingAuth = getAuthInfoFromCookie(request);
+      if (
+        existingAuth &&
+        (existingAuth.trustedNetwork ||
+          existingAuth.password ||
+          existingAuth.signature)
+      ) {
+        return NextResponse.next();
+      }
+      return generateTrustedAuthCookie();
+    }
+  }
+
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
   // if (!process.env.PASSWORD) {
@@ -106,7 +244,7 @@ export async function proxy(request: NextRequest) {
 
   // 验证签名（如果存在）
   if (authInfo.signature) {
-    const isValidSignature = verifySignature(
+    const isValidSignature = await verifySignature(
       authInfo.username,
       authInfo.signature,
       process.env.PASSWORD || '',
@@ -134,14 +272,41 @@ export async function proxy(request: NextRequest) {
   return handleAuthFailure(request, pathname);
 }
 
-// 使用 crypto-js 验证签名
-function verifySignature(
+// 验证签名
+async function verifySignature(
   data: string,
   signature: string,
   secret: string,
-): boolean {
-  const expectedSignature = CryptoJS.HmacSHA256(data, secret).toString();
-  return signature === expectedSignature;
+): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const messageData = encoder.encode(data);
+
+    // 导入密钥
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+
+    // 将十六进制字符串转换为Uint8Array
+    const signatureBuffer = new Uint8Array(
+      signature.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || [],
+    );
+
+    // 验证签名
+    return await crypto.subtle.verify(
+      'HMAC',
+      key,
+      signatureBuffer,
+      messageData,
+    );
+  } catch {
+    return false;
+  }
 }
 
 // 处理认证失败的情况
