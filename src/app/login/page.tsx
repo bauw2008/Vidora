@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useActionState, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
@@ -9,20 +9,16 @@ import { RandomBackground } from '@/components/RandomBackground';
 import { useSite } from '@/components/SiteProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-import { loginAction } from '@/app/auth/actions';
-
 function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const { siteName } = useSite();
-
-  const [state, formAction, isPending] = useActionState(loginAction, {
-    error: null,
-  });
 
   // 只在客户端生成 URL，避免水合错误
   useEffect(() => {
@@ -36,14 +32,41 @@ function LoginPageClient() {
   useEffect(() => {
     const checkAuthAndRedirect = () => {
       const auth = getAuthInfoFromBrowserCookie();
-      // 只有在已登录且没有错误时才跳转
-      if (auth && !state.error && !isPending) {
+      if (auth && !error && !loading) {
         const redirect = searchParams.get('redirect') || '/';
         router.replace(redirect);
       }
     };
     checkAuthAndRedirect();
-  }, [state.error, isPending, router, searchParams]);
+  }, [error, loading, router, searchParams]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || '登录失败');
+        return;
+      }
+
+      // 登录成功后刷新页面触发 middleware 验证
+      window.location.reload();
+    } catch {
+      setError('网络错误，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
@@ -63,10 +86,10 @@ function LoginPageClient() {
         <h1 className='text-white dark:text-gray-100 tracking-tight text-center text-2xl font-extrabold mb-6 bg-clip-text drop-shadow-sm'>
           {siteName}
         </h1>
-        <form action={formAction} className='space-y-6'>
-          {state.error && (
+        <form onSubmit={handleSubmit} className='space-y-6'>
+          {error && (
             <div className='rounded-lg bg-red-500/20 p-4 text-sm text-red-200 backdrop-blur-sm'>
-              {state.error}
+              {error}
             </div>
           )}
 
@@ -79,7 +102,6 @@ function LoginPageClient() {
             </label>
             <input
               id='username'
-              name='username'
               type='text'
               required
               value={username}
@@ -98,7 +120,6 @@ function LoginPageClient() {
             </label>
             <input
               id='password'
-              name='password'
               type='password'
               required
               value={password}
@@ -108,17 +129,12 @@ function LoginPageClient() {
             />
           </div>
 
-          {state.error && (
-            <p className='text-sm text-red-300 dark:text-red-400 bg-red-900/30 dark:bg-red-900/50 rounded-lg py-2 px-3 text-center'>
-              {state.error}
-            </p>
-          )}
-
           <button
             type='submit'
-            className='w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:from-green-500 hover:to-emerald-500 hover:shadow-xl'
+            disabled={loading}
+            className='w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:from-green-500 hover:to-emerald-500 hover:shadow-xl disabled:opacity-50'
           >
-            登录
+            {loading ? '登录中...' : '登录'}
           </button>
 
           <div className='text-center'>
