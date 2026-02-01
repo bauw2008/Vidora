@@ -1,4 +1,4 @@
-/* @typescript-eslint/no-explicit-any */
+import CryptoJS from 'crypto-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
@@ -34,31 +34,9 @@ async function updateLastActivity(username: string): Promise<void> {
   }
 }
 
-// 生成签名
-async function generateSignature(
-  data: string,
-  secret: string,
-): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(data);
-
-  // 导入密钥
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-
-  // 生成签名
-  const signature = await crypto.subtle.sign('HMAC', key, messageData);
-
-  // 转换为十六进制字符串
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+// 使用 crypto-js 生成签名
+function generateSignature(data: string, secret: string): string {
+  return CryptoJS.HmacSHA256(data, secret).toString();
 }
 
 interface AuthData {
@@ -86,7 +64,7 @@ async function generateAuthCookie(
   if (username && process.env.PASSWORD) {
     authData.username = username;
     // 使用密码作为密钥对用户名进行签名
-    const signature = await generateSignature(username, process.env.PASSWORD);
+    const signature = generateSignature(username, process.env.PASSWORD);
     authData.signature = signature;
     authData.timestamp = Date.now(); // 添加时间戳防重放攻击
   }
@@ -132,6 +110,7 @@ export async function POST(req: NextRequest) {
           expires: new Date(0),
           sameSite: 'lax', // 改为 lax 以支持 PWA
           httpOnly: false, // PWA 需要客户端可访问
+          secure: false, // 根据协议自动设置
         });
 
         return response;
@@ -165,6 +144,7 @@ export async function POST(req: NextRequest) {
         expires,
         sameSite: 'lax', // 改为 lax 以支持 PWA
         httpOnly: false, // PWA 需要客户端可访问
+        secure: false, // 根据协议自动设置
       });
 
       return response;
@@ -205,12 +185,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 更新最后活动时间
-      try {
-        await updateLastActivity(username);
-      } catch (error) {
-        logger.error('更新最后活动时间失败:', error);
-        // 更新失败不影响登录流程
-      }
+      await updateLastActivity(username);
 
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
@@ -228,6 +203,7 @@ export async function POST(req: NextRequest) {
         expires,
         sameSite: 'lax', // 改为 lax 以支持 PWA
         httpOnly: false, // PWA 需要客户端可访问
+        secure: false, // 根据协议自动设置
       });
 
       return response;
@@ -289,6 +265,7 @@ export async function POST(req: NextRequest) {
         expires,
         sameSite: 'lax', // 改为 lax 以支持 PWA
         httpOnly: false, // PWA 需要客户端可访问
+        secure: false, // 根据协议自动设置
       });
 
       return response;

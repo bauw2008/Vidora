@@ -28,11 +28,7 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "backup",
-    "node-functions",
-    "edge-functions",
-    "functions"
+    "node_modules"
   ],
   "moduleResolution": ["node_modules", ".next", "node"]
 }

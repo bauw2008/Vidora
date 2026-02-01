@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 
+import CryptoJS from 'crypto-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -105,7 +106,7 @@ export async function proxy(request: NextRequest) {
 
   // 验证签名（如果存在）
   if (authInfo.signature) {
-    const isValidSignature = await verifySignature(
+    const isValidSignature = verifySignature(
       authInfo.username,
       authInfo.signature,
       process.env.PASSWORD || '',
@@ -133,42 +134,14 @@ export async function proxy(request: NextRequest) {
   return handleAuthFailure(request, pathname);
 }
 
-// 验证签名
-async function verifySignature(
+// 使用 crypto-js 验证签名
+function verifySignature(
   data: string,
   signature: string,
   secret: string,
-): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(data);
-
-  try {
-    // 导入密钥
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    );
-
-    // 将十六进制字符串转换为Uint8Array
-    const signatureBuffer = new Uint8Array(
-      signature.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || [],
-    );
-
-    // 验证签名
-    return await crypto.subtle.verify(
-      'HMAC',
-      key,
-      signatureBuffer,
-      messageData,
-    );
-  } catch (error) {
-    console.error('签名验证失败:', error);
-    return false;
-  }
+): boolean {
+  const expectedSignature = CryptoJS.HmacSHA256(data, secret).toString();
+  return signature === expectedSignature;
 }
 
 // 处理认证失败的情况
