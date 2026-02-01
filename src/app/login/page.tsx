@@ -1,15 +1,13 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useActionState, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 import { RandomBackground } from '@/components/RandomBackground';
 import { useSite } from '@/components/SiteProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
-
-import { loginAction } from '@/app/auth/actions';
 
 function LoginPageClient() {
   const router = useRouter();
@@ -20,12 +18,10 @@ function LoginPageClient() {
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const { siteName } = useSite();
-
-  const [state, formAction, isPending] = useActionState(loginAction, {
-    error: null,
-  });
 
   // 只在客户端生成 URL，避免水合错误
   useEffect(() => {
@@ -71,13 +67,13 @@ function LoginPageClient() {
     const checkAuthAndRedirect = () => {
       const auth = getAuthInfoFromBrowserCookie();
       // 只有在已登录且没有错误时才跳转
-      if (auth && !state.error && !isPending) {
+      if (auth && !error && !isLoading) {
         const redirect = searchParams.get('redirect') || '/';
         router.replace(redirect);
       }
     };
     checkAuthAndRedirect();
-  }, [state.error, isPending, router, searchParams]);
+  }, [error, isLoading, router, searchParams]);
 
   return (
     <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
@@ -133,10 +129,42 @@ function LoginPageClient() {
           <h1 className='text-white dark:text-gray-100 tracking-tight text-center text-2xl font-extrabold mb-6 bg-clip-text drop-shadow-sm'>
             {siteName}
           </h1>
-          <form action={formAction} className='space-y-6'>
-            {state.error && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setError(null);
+              setIsLoading(true);
+
+              try {
+                const res = await fetch('/api/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    password,
+                    ...(username ? { username } : {}),
+                  }),
+                });
+
+                if (res.ok) {
+                  const redirect = searchParams.get('redirect') || '/';
+                  router.replace(redirect);
+                } else if (res.status === 401) {
+                  const data = await res.json();
+                  setError(data.error || '密码错误');
+                } else {
+                  setError('登录失败，请稍后重试');
+                }
+              } catch {
+                setError('网络错误，请稍后重试');
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            className='space-y-6'
+          >
+            {error && (
               <div className='rounded-lg bg-red-500/20 p-4 text-sm text-red-200 backdrop-blur-sm'>
-                {state.error}
+                {error}
               </div>
             )}
 
@@ -178,17 +206,18 @@ function LoginPageClient() {
               />
             </div>
 
-            {state.error && (
+            {error && (
               <p className='text-sm text-red-300 dark:text-red-400 bg-red-900/30 dark:bg-red-900/50 rounded-lg py-2 px-3 text-center'>
-                {state.error}
+                {error}
               </p>
             )}
 
             <button
               type='submit'
-              className='w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:from-green-500 hover:to-emerald-500 hover:shadow-xl'
+              disabled={isLoading}
+              className='w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:from-green-500 hover:to-emerald-500 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed'
             >
-              登录
+              {isLoading ? '登录中...' : '登录'}
             </button>
 
             <div className='text-center'>
