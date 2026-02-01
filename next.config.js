@@ -2,9 +2,7 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 
 const nextConfig = {
-  ...(process.env.VERCEL || process.env.DOCKER_BUILD
-    ? { output: 'standalone' }
-    : {}),
+  ...(process.env.NODE_ENV === 'production' ? { output: 'standalone' } : {}),
 
   reactStrictMode: true,
   reactCompiler: true,
