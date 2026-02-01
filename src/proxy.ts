@@ -66,21 +66,28 @@ async function isUserOnline(username: string): Promise<boolean> {
   }
 }
 
-export async function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest, context?: any) {
   const { pathname } = request.nextUrl;
+
+  // --- 兼容性核心：获取环境变量 ---
+  // 优先使用标准的 process.env，备选 EdgeOne 的 context.env
+  const env = process.env || context?.env || {};
+  const PASSWORD = env.PASSWORD;
+  const NEXT_PUBLIC_STORAGE_TYPE = env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
   // 跳过不需要认证的路径
   if (shouldSkipAuth(pathname)) {
     return NextResponse.next();
   }
 
-  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  const storageType = NEXT_PUBLIC_STORAGE_TYPE;
 
-  // if (!process.env.PASSWORD) {
-  // 如果没有设置密码，重定向到警告页面
-  // const warningUrl = new URL('/warning', request.url);
-  // return NextResponse.redirect(warningUrl);
-  // }
+  // 测试：检查PASSWORD环境变量是否可读
+  if (!PASSWORD) {
+    // 如果没有设置密码，重定向到警告页面
+    const warningUrl = new URL('/warning', request.url);
+    return NextResponse.redirect(warningUrl);
+  }
 
   // 从cookie获取认证信息
   const authInfo = getAuthInfoFromCookie(request);
@@ -91,7 +98,7 @@ export async function proxy(request: NextRequest) {
 
   // localstorage模式：在middleware中完成验证
   if (storageType === 'localstorage') {
-    if (!authInfo.password || authInfo.password !== process.env.PASSWORD) {
+    if (!authInfo.password || authInfo.password !== PASSWORD) {
       return handleAuthFailure(request, pathname);
     }
     return NextResponse.next();
@@ -108,7 +115,7 @@ export async function proxy(request: NextRequest) {
     const isValidSignature = await verifySignature(
       authInfo.username,
       authInfo.signature,
-      process.env.PASSWORD || '',
+      PASSWORD || '',
     );
 
     if (isValidSignature) {
