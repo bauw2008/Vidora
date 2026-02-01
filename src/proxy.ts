@@ -76,7 +76,10 @@ export async function proxy(request: NextRequest) {
 
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
-  if (!process.env.PASSWORD) {
+  // 在函数内部读取环境变量，确保运行时获取最新值
+  const password = process.env.PASSWORD;
+
+  if (!password) {
     // 如果没有设置密码，重定向到警告页面
     const warningUrl = new URL('/warning', request.url);
     return NextResponse.redirect(warningUrl);
@@ -91,7 +94,7 @@ export async function proxy(request: NextRequest) {
 
   // localstorage模式：在middleware中完成验证
   if (storageType === 'localstorage') {
-    if (!authInfo.password || authInfo.password !== process.env.PASSWORD) {
+    if (!authInfo.password || authInfo.password !== password) {
       return handleAuthFailure(request, pathname);
     }
     return NextResponse.next();
@@ -108,7 +111,7 @@ export async function proxy(request: NextRequest) {
     const isValidSignature = await verifySignature(
       authInfo.username,
       authInfo.signature,
-      process.env.PASSWORD || '',
+      password,
     );
 
     if (isValidSignature) {
