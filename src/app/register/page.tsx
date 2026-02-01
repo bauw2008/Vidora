@@ -2,15 +2,13 @@
 
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useActionState, useEffect, useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 
 import { logger } from '@/lib/logger';
 
 import { RandomBackground } from '@/components/RandomBackground';
 import { useSite } from '@/components/SiteProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
-
-import { registerAction } from '@/app/auth/actions';
 
 function RegisterPageClient() {
   const router = useRouter();
@@ -23,6 +21,9 @@ function RegisterPageClient() {
   const [disabledReason, setDisabledReason] = useState('');
   const [reason, setReason] = useState('');
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   // 只在客户端生成 URL，避免水合错误
   useEffect(() => {
@@ -31,29 +32,20 @@ function RegisterPageClient() {
       setBackgroundImageUrl(url);
     });
   }, []);
+
   const [validationErrors, setValidationErrors] = useState<{
     [key: string]: string;
   }>({});
 
   const { siteName } = useSite();
-  const [isPending, startTransition] = useTransition();
-
-  const [state, formAction] = useActionState(registerAction, {
-    error: null,
-    success: null,
-    pending: false,
-  });
 
   // 注册成功后跳转
   useEffect(() => {
-    if (state.success && !isPending) {
-      // 立即跳转到登录页面
-      startTransition(() => {
-        const redirect = searchParams.get('redirect') || '/login';
-        router.replace(redirect);
-      });
+    if (success && !pending) {
+      const redirect = searchParams.get('redirect') || '/login';
+      window.location.href = redirect;
     }
-  }, [state.success, isPending, router, searchParams]);
+  }, [success, pending, searchParams]);
 
   // 在客户端挂载后设置配置
   useEffect(() => {
@@ -258,15 +250,49 @@ function RegisterPageClient() {
           注册账号
         </h1>
 
-        {state.pending ? (
+        {pending ? (
           <div className='text-center space-y-4'>
             <CheckCircle className='w-16 h-16 text-green-400 mx-auto' />
             <p className='text-white dark:text-gray-100 font-medium'>
-              {state.success}
+              {success}
             </p>
           </div>
         ) : (
-          <form action={formAction} className='space-y-4'>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setError(null);
+              setSuccess(null);
+              setPending(true);
+
+              try {
+                const res = await fetch('/api/register', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    username,
+                    password,
+                    confirmPassword,
+                    reason,
+                  }),
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.ok) {
+                  setSuccess(data.message || '注册成功');
+                  setPending(data.pending || false);
+                } else {
+                  setError(data.error || '注册失败');
+                }
+              } catch {
+                setError('网络错误，请稍后重试');
+              } finally {
+                if (!success) setPending(false);
+              }
+            }}
+            className='space-y-4'
+          >
             <div>
               <label htmlFor='username' className='sr-only'>
                 用户名
@@ -346,9 +372,9 @@ function RegisterPageClient() {
               />
             </div>
 
-            {state.error && (
+            {error && (
               <p className='text-sm text-red-300 dark:text-red-400 bg-red-900/30 dark:bg-red-900/50 rounded-lg py-2 px-3 text-center border border-red-700/50'>
-                {state.error}
+                {error}
               </p>
             )}
 
