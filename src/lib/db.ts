@@ -559,27 +559,6 @@ export class DbManager {
     return storageType !== 'localstorage';
   }
 
-  // 在线状态管理 - 更新用户最后活动时间
-  async updateLastActivity(userName: string): Promise<void> {
-    if (!this.isUserDataSupported()) {
-      return;
-    }
-    if (typeof this.storage.updateLastActivity === 'function') {
-      await this.storage.updateLastActivity(userName);
-    }
-  }
-
-  // 在线状态管理 - 获取用户最后活动时间
-  async getUserLastActivity(userName: string): Promise<number> {
-    if (!this.isUserDataSupported()) {
-      return 0;
-    }
-    if (typeof this.storage.getUserLastActivity === 'function') {
-      return await this.storage.getUserLastActivity(userName);
-    }
-    return 0;
-  }
-
   // 站长配置相关方法
   async getOwnerConfig(): Promise<OwnerConfig> {
     if (!this.isUserDataSupported()) {

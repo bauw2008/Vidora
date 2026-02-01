@@ -138,10 +138,6 @@ export interface IStorage {
     isFirstLogin?: boolean,
   ): Promise<void>;
 
-  // 在线状态管理相关
-  updateLastActivity(userName: string): Promise<void>;
-  getUserLastActivity(userName: string): Promise<number>;
-
   // 站长配置相关
   getOwnerConfig(): Promise<OwnerConfig>;
   setOwnerConfig(config: OwnerConfig): Promise<void>;

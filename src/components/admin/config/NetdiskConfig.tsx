@@ -25,7 +25,7 @@ function NetdiskConfigContent() {
   const [netDiskSettings, setNetDiskSettings] = useState<NetDiskSettings>({
     enabled: true,
     pansouUrl: 'https://pansou.com',
-    timeout: 5000,
+    timeout: 30,
     enabledCloudTypes: ['aliyun', '115', 'quark'],
   });
 
@@ -112,7 +112,6 @@ function NetdiskConfigContent() {
   ];
 
   const handleSave = async () => {
-    logger.log('[NetdiskConfig] handleSave 被调用');
     await withLoading('saveNetDiskConfig', async () => {
       try {
         const response = await fetch('/api/admin/netdisk', {
@@ -137,8 +136,6 @@ function NetdiskConfigContent() {
 
   // 处理开关变化
   const handleToggleChange = async (enabled: boolean) => {
-    logger.log('[NetdiskConfig] 开关切换:', enabled);
-
     // 立即更新本地状态，让UI立即响应
     setNetDiskSettings((prev) => ({ ...prev, enabled }));
 
@@ -211,12 +208,6 @@ function NetdiskConfigContent() {
                 className='relative inline-flex items-center cursor-pointer'
                 onClick={() => {
                   const newState = !netDiskSettings.enabled;
-                  logger.log(
-                    '[NetdiskConfig] 开关点击，当前值:',
-                    netDiskSettings.enabled,
-                    '新值:',
-                    newState,
-                  );
                   handleToggleChange(newState);
                 }}
               >

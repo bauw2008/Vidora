@@ -10,27 +10,6 @@ import { PlayRecord } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
-// 在线状态配置
-const ONLINE_TIMEOUT = 30 * 60 * 1000; // 30分钟超时（毫秒）
-
-// 获取用户最后活动时间
-async function getUserLastActivity(username: string): Promise<number> {
-  try {
-    const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
-
-    // localstorage 模式返回 0
-    if (storageType === 'localstorage') {
-      return 0;
-    }
-
-    // 使用统一的存储接口
-    return await db.getUserLastActivity(username);
-  } catch (error) {
-    logger.error('获取用户最后活动时间失败:', error);
-    return 0;
-  }
-}
-
 export async function GET(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {
@@ -251,12 +230,10 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // 获取用户最后活动时间
-        const lastActivityTime = await getUserLastActivity(user.username);
-        // 只有当有活动记录且在超时时间内才视为在线
-        const isOnline =
-          lastActivityTime > 0 &&
-          Date.now() - lastActivityTime < ONLINE_TIMEOUT;
+        // 用户是否活跃（基于最后登录时间，30天内视为活跃）
+        const isUserActive =
+          lastLoginTime > 0 &&
+          Date.now() - lastLoginTime < 30 * 24 * 60 * 60 * 1000;
 
         // 添加调试日志
         if (user.username === process.env.USERNAME) {
@@ -267,14 +244,9 @@ export async function GET(request: NextRequest) {
               : null,
             timeDiff: userLastPlayTime ? Date.now() - userLastPlayTime : null,
             recordsCount: records.length,
-            lastActivityTime,
-            lastActivityTimeDate: lastActivityTime
-              ? new Date(lastActivityTime)
-              : null,
-            activityTimeDiff: lastActivityTime
-              ? Date.now() - lastActivityTime
-              : null,
-            isOnline,
+            lastLoginTime,
+            lastLoginTimeDate: lastLoginTime ? new Date(lastLoginTime) : null,
+            isUserActive,
           });
         }
 
@@ -283,15 +255,13 @@ export async function GET(request: NextRequest) {
           totalWatchTime: userWatchTime,
           totalPlays: records.length,
           lastPlayTime: userLastPlayTime,
-          lastActivityTime,
-          isOnline,
+          lastLoginTime: lastLoginTime || userCreatedAt, // 如果没有登入记录，使用注册时间
           recentRecords,
           avgWatchTime: records.length > 0 ? userWatchTime / records.length : 0,
           mostWatchedSource,
           avatar: userAvatar,
           loginIp: userLoginIp,
           registrationDays,
-          lastLoginTime: lastLoginTime || userCreatedAt, // 如果没有登入记录，使用注册时间
           loginCount,
           createdAt: userCreatedAt,
         };

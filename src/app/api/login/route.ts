@@ -16,24 +16,6 @@ const STORAGE_TYPE =
     | 'kvrocks'
     | undefined) || 'localstorage';
 
-// 更新用户最后活动时间
-async function updateLastActivity(username: string): Promise<void> {
-  try {
-    const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
-
-    // 只有非 localstorage 模式才更新在线状态
-    if (storageType === 'localstorage') {
-      return;
-    }
-
-    // 使用统一的存储接口
-    await db.updateLastActivity(username);
-  } catch (error) {
-    logger.error('更新用户活动时间失败:', error);
-    // 不影响主流程，静默失败
-  }
-}
-
 // 生成签名
 async function generateSignature(
   data: string,
@@ -206,9 +188,6 @@ export async function POST(req: NextRequest) {
         // 记录失败不影响登录流程
       }
 
-      // 更新最后活动时间
-      await updateLastActivity(username);
-
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
       const cookieValue = await generateAuthCookie(
@@ -267,9 +246,6 @@ export async function POST(req: NextRequest) {
         logger.error('记录登录IP失败:', error);
         // 记录失败不影响登录流程
       }
-
-      // 更新最后活动时间
-      await updateLastActivity(username);
 
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });

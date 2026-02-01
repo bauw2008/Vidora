@@ -163,9 +163,6 @@ function AIConfigContent() {
 
     try {
       await withLoading('saveAIConfig', async () => {
-        logger.log('[AIConfig] 准备保存AI配置:', aiSettings);
-        logger.log('[AIConfig] enabled 状态:', aiSettings.enabled);
-
         const response = await fetch('/api/admin/ai-recommend', {
           method: 'POST',
           headers: {
@@ -174,16 +171,10 @@ function AIConfigContent() {
           body: JSON.stringify(aiSettings),
         });
 
-        logger.log('[AIConfig] AI配置保存响应状态:', response.status);
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          logger.log('[AIConfig] 保存失败 - 错误信息:', errorData);
           throw new Error(errorData.error || '保存失败');
         }
-
-        const responseData = await response.json();
-        logger.log('[AIConfig] 保存成功:', responseData);
 
         showSuccess('AI推荐配置保存成功');
       });
@@ -207,13 +198,6 @@ function AIConfigContent() {
           model: aiSettings.model,
         };
 
-        logger.log('Sending AI test request:', {
-          ...requestData,
-          apiKey: requestData.apiKey
-            ? `${requestData.apiKey.substring(0, 10)}...`
-            : 'EMPTY',
-        });
-
         const response = await fetch('/api/admin/ai-recommend/test', {
           method: 'POST',
           headers: {
@@ -222,17 +206,12 @@ function AIConfigContent() {
           body: JSON.stringify(requestData),
         });
 
-        logger.log('Response status:', response.status);
-        logger.log('Response headers:', response.headers);
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          logger.error('Error response:', errorData);
           throw new Error(errorData.error || '连接测试失败');
         }
 
         const result = await response.json();
-        logger.log('Success response:', result);
         showSuccess(result.message || 'API连接测试成功！');
       } catch (error) {
         logger.error('Test error:', error);

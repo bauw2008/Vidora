@@ -77,13 +77,13 @@ export async function POST(request: NextRequest) {
       typeof DisableYellowFilter !== 'boolean' ||
       typeof FluidSearch !== 'boolean' ||
       !MenuSettings ||
-      typeof MenuSettings?.showMovies !== 'boolean' ||
-      typeof MenuSettings?.showTVShows !== 'boolean' ||
-      typeof MenuSettings?.showAnime !== 'boolean' ||
-      typeof MenuSettings?.showVariety !== 'boolean' ||
-      typeof MenuSettings?.showLive !== 'boolean' ||
-      typeof MenuSettings?.showTvbox !== 'boolean' ||
-      typeof MenuSettings?.showShortDrama !== 'boolean'
+      typeof MenuSettings.showMovies !== 'boolean' ||
+      typeof MenuSettings.showTVShows !== 'boolean' ||
+      typeof MenuSettings.showAnime !== 'boolean' ||
+      typeof MenuSettings.showVariety !== 'boolean' ||
+      typeof MenuSettings.showLive !== 'boolean' ||
+      typeof MenuSettings.showTvbox !== 'boolean' ||
+      typeof MenuSettings.showShortDrama !== 'boolean'
     ) {
       logger.error('参数验证失败:', {
         SiteName: typeof SiteName,
@@ -97,13 +97,13 @@ export async function POST(request: NextRequest) {
         DisableYellowFilter: typeof DisableYellowFilter,
         FluidSearch: typeof FluidSearch,
         MenuSettings: MenuSettings ? 'object' : 'undefined',
-        showMovies: MenuSettings?.showMovies ? 'boolean' : 'undefined',
-        showTVShows: MenuSettings?.showTVShows ? 'boolean' : 'undefined',
-        showAnime: MenuSettings?.showAnime ? 'boolean' : 'undefined',
-        showVariety: MenuSettings?.showVariety ? 'boolean' : 'undefined',
-        showLive: MenuSettings?.showLive ? 'boolean' : 'undefined',
-        showTvbox: MenuSettings?.showTvbox ? 'boolean' : 'undefined',
-        showShortDrama: MenuSettings?.showShortDrama ? 'boolean' : 'undefined',
+        showMovies: MenuSettings?.showMovies,
+        showTVShows: MenuSettings?.showTVShows,
+        showAnime: MenuSettings?.showAnime,
+        showVariety: MenuSettings?.showVariety,
+        showLive: MenuSettings?.showLive,
+        showTvbox: MenuSettings?.showTvbox,
+        showShortDrama: MenuSettings?.showShortDrama,
       });
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
