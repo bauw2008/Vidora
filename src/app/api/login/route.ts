@@ -207,7 +207,12 @@ export async function POST(req: NextRequest) {
       }
 
       // 更新最后活动时间
-      await updateLastActivity(username);
+      try {
+        await updateLastActivity(username);
+      } catch (error) {
+        logger.error('更新最后活动时间失败:', error);
+        // 更新失败不影响登录流程
+      }
 
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
