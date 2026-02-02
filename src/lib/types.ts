@@ -236,6 +236,7 @@ export interface DoubanItem {
   videoId?: string;
   source_name?: string;
   contentType?: string; // 内容类型：movie/tv/anime/variety/shortdrama
+  remarks?: string; // 备注/更新时间
 }
 
 export interface DoubanResult {

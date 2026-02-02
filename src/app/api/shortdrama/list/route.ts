@@ -19,6 +19,8 @@ interface ShortDramaListItem {
   backdrop?: string;
   vote_average?: number;
   tmdb_id?: string | number;
+  vod_remarks?: string;
+  remarks?: string;
 }
 
 // 服务端专用函数，直接调用外部API
@@ -60,7 +62,7 @@ async function getShortDramaListInternal(
     cover: item.cover,
     update_time: item.update_time || new Date().toISOString(),
     score: item.score || 0,
-    episode_count: 1, // 分页API没有集数信息，ShortDramaCard会自动获取
+    episode_count: 1,
     description: item.description || '',
     author: item.author || '',
     backdrop: item.backdrop || item.cover,

@@ -193,7 +193,9 @@ function ShortDramaPageClient() {
             title: item.name || '',
             poster: item.cover || '',
             rate: '',
-            year:
+            year: '',
+            episodes: item.episode_count || 0,
+            remarks:
               item.update_time?.split(/[\sT]/)?.[0]?.replace(/-/g, '.') || '',
             type: 'shortdrama',
             source: 'shortdrama',
@@ -234,7 +236,9 @@ function ShortDramaPageClient() {
                 title: item.name || '',
                 poster: item.cover || '',
                 rate: '',
-                year:
+                year: '',
+                episodes: item.episode_count || 0,
+                remarks:
                   item.update_time?.split(/[\sT]/)?.[0]?.replace(/-/g, '.') ||
                   '',
                 type: 'shortdrama',
@@ -323,7 +327,9 @@ function ShortDramaPageClient() {
               title: item.name || '',
               poster: item.cover || '',
               rate: '',
-              year:
+              year: '',
+              episodes: item.episode_count || 0,
+              remarks:
                 item.update_time?.split(/[\sT]/)?.[0]?.replace(/-/g, '.') || '',
               type: 'shortdrama',
               source: 'shortdrama',
@@ -366,7 +372,9 @@ function ShortDramaPageClient() {
                   title: item.name || '',
                   poster: item.cover || '',
                   rate: '',
-                  year:
+                  year: '',
+                  episodes: item.episode_count || 0,
+                  remarks:
                     item.update_time?.split(/[\sT]/)?.[0]?.replace(/-/g, '.') ||
                     '',
                   type: 'shortdrama',
@@ -492,7 +500,9 @@ function ShortDramaPageClient() {
             title: item.name || '',
             poster: item.cover || '',
             rate: '',
-            year:
+            year: '',
+            episodes: item.episode_count || 0,
+            remarks:
               item.update_time?.split(/[\sT]/)?.[0]?.replace(/-/g, '.') || '',
             type: 'shortdrama',
             source: 'shortdrama',
@@ -623,6 +633,8 @@ function ShortDramaPageClient() {
                   from='shortdrama'
                   rate={item.rate}
                   year={item.year}
+                  episodes={item.episodes}
+                  remarks={item.remarks}
                   source_name={item.source_name}
                 />
               </div>

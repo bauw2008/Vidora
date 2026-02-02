@@ -813,3 +813,25 @@ div[data-media-provider] video {
     animation: none;
   }
 }
+
+/* 排行榜徽章光晕效果 */
+.glow-gold {
+  box-shadow:
+    0 0 12px rgba(251, 191, 36, 0.6),
+    0 0 24px rgba(251, 191, 36, 0.4),
+    0 0 36px rgba(251, 191, 36, 0.2);
+}
+
+.glow-silver {
+  box-shadow:
+    0 0 12px rgba(148, 163, 184, 0.6),
+    0 0 24px rgba(148, 163, 184, 0.4),
+    0 0 36px rgba(148, 163, 184, 0.2);
+}
+
+.glow-bronze {
+  box-shadow:
+    0 0 12px rgba(249, 115, 22, 0.6),
+    0 0 24px rgba(249, 115, 22, 0.4),
+    0 0 36px rgba(249, 115, 22, 0.2);
+}

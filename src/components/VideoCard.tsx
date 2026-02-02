@@ -941,7 +941,7 @@ function VideoCard({
           {/* 排行徽章（1-3名） */}
           {rank && rank >= 1 && rank <= 3 && (
             <div
-              className='absolute top-2 left-2 bg-gradient-to-br from-yellow-400 to-orange-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-lg z-10'
+              className='absolute top-2 left-2 text-2xl z-10'
               style={
                 {
                   WebkitUserSelect: 'none',
@@ -954,7 +954,7 @@ function VideoCard({
                 return false;
               }}
             >
-              {rank}
+              {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}
             </div>
           )}
 
