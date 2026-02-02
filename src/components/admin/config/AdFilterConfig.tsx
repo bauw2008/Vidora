@@ -1,18 +1,20 @@
 'use client';
 
-import { AlertTriangle, Code, Info, RotateCcw, Save } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Info,
+  RotateCcw,
+  Save,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import {
-  useAdminAuth,
-  useAdminLoading,
-  useToastNotification,
-} from '@/hooks/admin';
+import { useAdminAuth, useAdminLoading } from '@/hooks/admin';
 
 interface CustomAdFilterSettings {
   CustomAdFilterCode: string;
   CustomAdFilterVersion: number;
-  CustomAdFilterEnabled: boolean;
 }
 
 function CustomAdFilterConfigContent({
@@ -23,7 +25,6 @@ function CustomAdFilterConfigContent({
     SiteConfig?: {
       CustomAdFilterCode?: string;
       CustomAdFilterVersion?: number;
-      CustomAdFilterEnabled?: boolean;
     };
   };
   refreshConfig?: () => void;
@@ -31,27 +32,26 @@ function CustomAdFilterConfigContent({
   // 使用统一的 hooks
   const { isAdminOrOwner } = useAdminAuth();
   const { isLoading, withLoading } = useAdminLoading();
-  const { showError, showSuccess } = useToastNotification();
 
   // 去广告配置状态
   const [filterSettings, setFilterSettings] = useState<CustomAdFilterSettings>({
     CustomAdFilterCode: '',
     CustomAdFilterVersion: 1,
-    CustomAdFilterEnabled: false,
   });
 
   const [hasChanges, setHasChanges] = useState(false);
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   // 初始化配置
   useEffect(() => {
     if (config?.SiteConfig) {
-      // 使用 requestAnimationFrame 来延迟 setState 调用
       requestAnimationFrame(() => {
         setFilterSettings({
           CustomAdFilterCode: config.SiteConfig.CustomAdFilterCode || '',
           CustomAdFilterVersion: config.SiteConfig.CustomAdFilterVersion || 1,
-          CustomAdFilterEnabled:
-            config.SiteConfig.CustomAdFilterEnabled || false,
         });
       });
     }
@@ -61,16 +61,19 @@ function CustomAdFilterConfigContent({
   useEffect(() => {
     const originalCode = config?.SiteConfig?.CustomAdFilterCode || '';
     const originalVersion = config?.SiteConfig?.CustomAdFilterVersion || 1;
-    const originalEnabled = config?.SiteConfig?.CustomAdFilterEnabled || false;
-    // 使用 requestAnimationFrame 来延迟 setState 调用
     requestAnimationFrame(() => {
       setHasChanges(
         filterSettings.CustomAdFilterCode !== originalCode ||
-          filterSettings.CustomAdFilterVersion !== originalVersion ||
-          filterSettings.CustomAdFilterEnabled !== originalEnabled,
+          filterSettings.CustomAdFilterVersion !== originalVersion,
       );
     });
   }, [filterSettings, config]);
+
+  // 显示消息
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   // 非管理员或站长禁止访问
   if (!isAdminOrOwner) {
@@ -82,24 +85,62 @@ function CustomAdFilterConfigContent({
     );
   }
 
-  // 默认示例代码
-  const defaultExample = `// 示例1：过滤包含特定关键词的广告片段
+  // 默认示例代码（从备份项目移植，更详细）
+  const defaultExample = `// 自定义去广告函数
+// 参数: type (播放源key), m3u8Content (m3u8文件内容)
+// 返回: 过滤后的m3u8内容
+
 function filterAdsFromM3U8(type, m3u8Content) {
-  const lines = m3u8Content.split('\n');
+  if (!m3u8Content) return '';
+
+  // 广告关键字列表
+  const adKeywords = [
+    'sponsor',
+    '/ad/',
+    '/ads/',
+    'advert',
+    'advertisement',
+    '/adjump',
+    'redtraffic'
+  ];
+
+  // 按行分割M3U8内容
+  const lines = m3u8Content.split('\\n');
   const filteredLines = [];
-  
-  for (let i = 0; i < lines.length; i++) {
+
+  let i = 0;
+  while (i < lines.length) {
     const line = lines[i];
-    
-    // 跳过包含广告关键词的行
-    if (line.includes('ad') || line.includes('advertisement') || line.includes('commercial')) {
+
+    // 跳过 #EXT-X-DISCONTINUITY 标识
+    if (line.includes('#EXT-X-DISCONTINUITY')) {
+      i++;
       continue;
     }
-    
+
+    // 如果是 EXTINF 行，检查下一行 URL 是否包含广告关键字
+    if (line.includes('#EXTINF:')) {
+      // 检查下一行 URL 是否包含广告关键字
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        const containsAdKeyword = adKeywords.some(keyword =>
+          nextLine.toLowerCase().includes(keyword.toLowerCase())
+        );
+
+        if (containsAdKeyword) {
+          // 跳过 EXTINF 行和 URL 行
+          i += 2;
+          continue;
+        }
+      }
+    }
+
+    // 保留当前行
     filteredLines.push(line);
+    i++;
   }
-  
-  return filteredLines.join('\n');
+
+  return filteredLines.join('\\n');
 }`;
 
   // 保存配置
@@ -115,15 +156,18 @@ function filterAdsFromM3U8(type, m3u8Content) {
           ...data.Config?.SiteConfig,
           CustomAdFilterCode: filterSettings.CustomAdFilterCode,
           CustomAdFilterVersion: filterSettings.CustomAdFilterVersion,
-          CustomAdFilterEnabled: filterSettings.CustomAdFilterEnabled,
         };
 
-        const saveResponse = await fetch('/api/admin/site', {
+        const saveResponse = await fetch('/api/admin/config', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(
+            data.Config
+              ? { ...data.Config, SiteConfig: payload }
+              : { SiteConfig: payload },
+          ),
         });
 
         if (!saveResponse.ok) {
@@ -131,24 +175,71 @@ function filterAdsFromM3U8(type, m3u8Content) {
           throw new Error(errorData.error || '保存失败');
         }
 
-        showSuccess('去广告配置保存成功');
+        showMessage('success', '去广告配置保存成功');
         setHasChanges(false);
         if (refreshConfig) {
           refreshConfig();
         }
       });
     } catch (error) {
-      showError('保存失败: ' + (error as Error).message);
+      showMessage('error', '保存失败: ' + (error as Error).message);
     }
   };
 
-  // 重置配置
+  // 重置配置（仅重置输入框，不保存）
   const handleReset = () => {
     setFilterSettings({
       CustomAdFilterCode: '',
       CustomAdFilterVersion: 1,
-      CustomAdFilterEnabled: false,
     });
+  };
+
+  // 恢复默认配置并保存到数据库
+  const handleRestoreDefault = async () => {
+    try {
+      await withLoading('restoreAdFilterConfig', async () => {
+        // 获取当前配置
+        const configResponse = await fetch('/api/admin/config');
+        const data = await configResponse.json();
+
+        // 合并现有配置，重置去广告配置
+        const payload = {
+          ...data.Config?.SiteConfig,
+          CustomAdFilterCode: '',
+          CustomAdFilterVersion: 1,
+        };
+
+        const saveResponse = await fetch('/api/admin/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(
+            data.Config
+              ? { ...data.Config, SiteConfig: payload }
+              : { SiteConfig: payload },
+          ),
+        });
+
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || '恢复默认失败');
+        }
+
+        setFilterSettings({
+          CustomAdFilterCode: '',
+          CustomAdFilterVersion: 1,
+        });
+
+        showMessage('success', '已恢复为默认配置');
+        setHasChanges(false);
+        if (refreshConfig) {
+          refreshConfig();
+        }
+      });
+    } catch (error) {
+      showMessage('error', '恢复默认失败: ' + (error as Error).message);
+    }
   };
 
   // 使用示例
@@ -213,40 +304,6 @@ function filterAdsFromM3U8(type, m3u8Content) {
                 </ul>
               </div>
             </div>
-          </div>
-
-          {/* 启用开关 */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                启用自定义广告过滤
-              </label>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                开启后将在内置广告过滤基础上执行自定义过滤规则
-              </p>
-            </div>
-            <button
-              type='button'
-              onClick={() =>
-                setFilterSettings({
-                  ...filterSettings,
-                  CustomAdFilterEnabled: !filterSettings.CustomAdFilterEnabled,
-                })
-              }
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                filterSettings.CustomAdFilterEnabled
-                  ? 'bg-purple-600'
-                  : 'bg-gray-200 dark:bg-gray-700'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  filterSettings.CustomAdFilterEnabled
-                    ? 'translate-x-6'
-                    : 'translate-x-1'
-                }`}
-              />
-            </button>
           </div>
 
           {/* 版本号 */}
@@ -326,8 +383,26 @@ function filterAdsFromM3U8(type, m3u8Content) {
             </div>
           </div>
 
+          {/* 消息提示 */}
+          {message && (
+            <div
+              className={`flex items-center gap-2 p-4 rounded-lg ${
+                message.type === 'success'
+                  ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800'
+                  : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800'
+              }`}
+            >
+              {message.type === 'success' ? (
+                <CheckCircle className='w-5 h-5 shrink-0' />
+              ) : (
+                <AlertCircle className='w-5 h-5 shrink-0' />
+              )}
+              <span className='text-sm'>{message.text}</span>
+            </div>
+          )}
+
           {/* 操作按钮 */}
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4'>
             <div className='flex items-center space-x-3'>
               <button
                 onClick={handleReset}
@@ -336,6 +411,13 @@ function filterAdsFromM3U8(type, m3u8Content) {
               >
                 <RotateCcw className='w-4 h-4' />
                 <span>重置</span>
+              </button>
+              <button
+                onClick={handleRestoreDefault}
+                disabled={isLoading('restoreAdFilterConfig')}
+                className='px-4 py-2 text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-700 hover:bg-orange-200 dark:hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+              >
+                恢复默认
               </button>
               {hasChanges && (
                 <span className='text-sm text-orange-600 dark:text-orange-400'>
@@ -358,68 +440,6 @@ function filterAdsFromM3U8(type, m3u8Content) {
               </span>
             </button>
           </div>
-
-          {/* 预定义规则示例 */}
-          <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-4'>
-            <h4 className='text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center'>
-              <Code className='w-4 h-4 mr-2' />
-              常用过滤规则示例
-            </h4>
-            <div className='space-y-3 text-sm'>
-              <div className='bg-white dark:bg-gray-900 rounded p-3'>
-                <p className='font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                  过滤短片段（可能是广告）
-                </p>
-                <pre className='text-xs text-gray-600 dark:text-gray-400 overflow-x-auto'>
-                  {`function filterAdsFromM3U8(type, m3u8Content) {
-  const lines = m3u8Content.split('\n');
-  const filteredLines = [];
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    if (line.startsWith('#EXTINF:')) {
-      const duration = parseFloat(line.split(',')[0].replace('#EXTINF:', ''));
-      if (duration < 5) {
-        i++; // 跳过对应的 URL 行
-        continue;
-      }
-    }
-    
-    filteredLines.push(line);
-  }
-  
-  return filteredLines.join('\n');
-}`}
-                </pre>
-              </div>
-
-              <div className='bg-white dark:bg-gray-900 rounded p-3'>
-                <p className='font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                  过滤包含特定URL的片段
-                </p>
-                <pre className='text-xs text-gray-600 dark:text-gray-400 overflow-x-auto'>
-                  {`function filterAdsFromM3U8(type, m3u8Content) {
-  const lines = m3u8Content.split('\n');
-  const filteredLines = [];
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    // 跳过包含广告域名的URL
-    if (line.includes('ads.') || line.includes('advertisement.')) {
-      continue;
-    }
-    
-    filteredLines.push(line);
-  }
-  
-  return filteredLines.join('\n');
-}`}
-                </pre>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
@@ -435,7 +455,6 @@ export default function CustomAdFilterConfig({
     SiteConfig?: {
       CustomAdFilterCode?: string;
       CustomAdFilterVersion?: number;
-      CustomAdFilterEnabled?: boolean;
     };
   };
   refreshConfig?: () => void;

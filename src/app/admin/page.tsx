@@ -203,6 +203,18 @@ const ShortDramaConfigDynamic = dynamic(
     ssr: false,
   },
 );
+const DanmuApiConfigDynamic = dynamic(
+  () => import('@/components/admin/config/DanmuApiConfig'),
+  {
+    loading: () => (
+      <div className='flex items-center justify-center py-16'>
+        <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3'></div>
+        <span className='text-gray-500'>加载中...</span>
+      </div>
+    ),
+    ssr: false,
+  },
+);
 
 // 配置项数据
 const configCategories = {
@@ -212,22 +224,27 @@ const configCategories = {
       { id: 'configFile', name: '订阅配置', component: ConfigFileDynamic },
       { id: 'siteConfig', name: '站点配置', component: SiteConfigDynamic },
       { id: 'userConfig', name: '用户配置', component: UserConfigDynamic },
+      { id: 'videoConfig', name: '视频采集', component: VideoConfigDynamic },
+      {
+        id: 'categoryConfig',
+        name: '豆瓣扩展',
+        component: CategoryConfigDynamic,
+      },
     ],
   },
   content: {
     name: '内容管理',
     items: [
-      { id: 'videoConfig', name: '视频采集', component: VideoConfigDynamic },
       { id: 'liveConfig', name: '直播配置', component: LiveConfigDynamic },
-      {
-        id: 'categoryConfig',
-        name: '其他分类',
-        component: CategoryConfigDynamic,
-      },
       {
         id: 'shortDramaConfig',
         name: '短剧API',
         component: ShortDramaConfigDynamic,
+      },
+      {
+        id: 'danmuApiConfig',
+        name: '弹幕API',
+        component: DanmuApiConfigDynamic,
       },
       { id: 'yellowConfig', name: '18+过滤', component: YellowConfigDynamic },
     ],

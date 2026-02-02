@@ -55,6 +55,7 @@ export default async function RootLayout({
   let disableYellowFilter =
     process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
   let fluidSearch = process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false';
+  let customAdFilterVersion = 0;
   let customCategories = [] as {
     name: string;
     type: 'movie' | 'tv';
@@ -82,6 +83,7 @@ export default async function RootLayout({
           query: category.query,
         }));
       fluidSearch = config.SiteConfig.FluidSearch;
+      customAdFilterVersion = config.SiteConfig?.CustomAdFilterVersion || 0;
     }
   }
 
@@ -138,6 +140,7 @@ export default async function RootLayout({
     DISABLE_YELLOW_FILTER: disableYellowFilter,
     CUSTOM_CATEGORIES: customCategories,
     FLUID_SEARCH: fluidSearch,
+    CUSTOM_AD_FILTER_VERSION: customAdFilterVersion,
     NetDiskConfig: netDiskConfig,
     AIConfig: aiConfig,
     TMDBConfig: tmdbConfig,

@@ -25,6 +25,7 @@ export interface AdminConfig {
     EnableTMDBPosters?: boolean;
     MaxUsers?: number; // 最大用户数限制
     MenuSettings: MenuSettings;
+    CustomAdFilterVersion?: number; // 自定义去广告代码版本号
   };
   YellowWords?: string[]; // 18+内容过滤词
   UserConfig: {
@@ -144,5 +145,12 @@ export interface AdminConfig {
     primaryApiUrl: string;
     alternativeApiUrl: string;
     enableAlternative: boolean;
+  };
+  DanmuApiConfig?: {
+    enabled: boolean;
+    useCustomApi: boolean;
+    customApiUrl: string;
+    customToken: string;
+    timeout: number;
   };
 }
