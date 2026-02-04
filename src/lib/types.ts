@@ -367,6 +367,8 @@ export interface ContentStat {
 export interface ShortDramaCategory {
   type_id: number;
   type_name: string;
+  id?: number;
+  name?: string;
 }
 
 // 短剧项目
@@ -382,6 +384,7 @@ export interface ShortDramaItem {
   backdrop: string;
   vote_average: number;
   tmdb_id?: number;
+  year?: string;
 }
 
 // 短剧解析结果

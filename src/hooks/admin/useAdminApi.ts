@@ -83,6 +83,7 @@ export const useAdminApi = () => {
       primaryApiUrl: string;
       alternativeApiUrl: string;
       enableAlternative: boolean;
+      [key: string]: string | boolean | number;
     }) =>
       callApi(
         '/api/admin/shortdrama',

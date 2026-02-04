@@ -1,84 +1,50 @@
 import { NextResponse } from 'next/server';
 
+import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { getRandomUserAgent } from '@/lib/user-agent';
+import { getShortDramaCategories } from '@/lib/shortdrama-api';
 
-// 强制动态路由，禁用所有缓存
+// 强制动态路由
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
 
-// 服务端专用函数，直接调用外部API
-async function getShortDramaCategoriesInternal() {
-  const response = await fetch(
-    'https://api.r2afosne.dpdns.org/vod/categories',
-    {
-      headers: {
-        'User-Agent': getRandomUserAgent(),
-        Accept: 'application/json',
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const categories = data.categories || [];
-  return categories.map((item: CategoryItem) => ({
-    type_id: item.type_id,
-    type_name: item.type_name,
-  }));
-}
-
-interface CategoryItem {
-  type_id: string | number;
-  type_name: string;
-}
+// 缓存时间配置（秒）
+const CACHE_TTL = 4 * 60 * 60; // 4小时
 
 export async function GET() {
   try {
-    const categories = await getShortDramaCategoriesInternal();
+    const cacheKey = 'shortdrama-categories';
 
-    // 设置与网页端一致的缓存策略（categories: 4小时）
-    const response = NextResponse.json(categories);
+    // 尝试从缓存获取
+    const cached = await db.getCache(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
-    // 4小时 = 14400秒（与网页端SHORTDRAMA_CACHE_EXPIRE.categories一致）
-    const cacheTime = 14400;
+    const categories = await getShortDramaCategories();
+
+    // 转换为新旧格式兼容
+    const formattedCategories = categories.map((item) => ({
+      type_id: item.id,
+      type_name: item.name,
+    }));
+
+    // 只在成功时保存到缓存
+    await db.setCache(cacheKey, formattedCategories, CACHE_TTL);
+
+    const response = NextResponse.json(formattedCategories);
     response.headers.set(
-      'Cache-Control',
-      `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-    );
-    response.headers.set('CDN-Cache-Control', `public, s-maxage=${cacheTime}`);
-    response.headers.set(
-      'Vercel-CDN-Cache-Control',
-      `public, s-maxage=${cacheTime}`,
-    );
-
-    // 调试信息
-    response.headers.set('X-Cache-Duration', '4hour');
-    response.headers.set(
-      'X-Cache-Expires-At',
-      new Date(Date.now() + cacheTime * 1000).toISOString(),
-    );
-    response.headers.set('X-Debug-Timestamp', new Date().toISOString());
-
-    // Vary头确保不同设备有不同缓存
-    response.headers.set('Vary', 'Accept-Encoding, User-Agent');
-
-    return response;
-  } catch (error) {
-    logger.error('获取短剧分类失败:', error);
-    const errorResponse = NextResponse.json(
-      { error: '服务器内部错误' },
-      { status: 500 },
-    );
-    // 错误响应不缓存，避免缓存失效的 API
-    errorResponse.headers.set(
       'Cache-Control',
       'no-cache, no-store, must-revalidate',
     );
-    return errorResponse;
+    return response;
+  } catch (error) {
+    logger.error('获取短剧分类失败:', error);
+
+    // 发生错误时删除相关缓存
+    await db.deleteCache('shortdrama-categories').catch(() => {
+      // 忽略缓存删除错误
+    });
+
+    return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });
   }
 }

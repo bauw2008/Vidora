@@ -142,9 +142,9 @@ export interface AdminConfig {
     };
   };
   ShortDramaConfig?: {
-    primaryApiUrl: string;
-    alternativeApiUrl: string;
-    enableAlternative: boolean;
+    apiUrl: string;
+    apiKey: string;
+    authEnabled: boolean;
   };
   DanmuApiConfig?: {
     enabled: boolean;

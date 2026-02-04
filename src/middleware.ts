@@ -125,6 +125,7 @@ function shouldSkipAuth(pathname: string): boolean {
     '/icons/',
     '/logo.png',
     '/screenshot.png',
+    '/api/shortdrama', // 短剧API不需要认证
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));

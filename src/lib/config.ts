@@ -696,11 +696,20 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   // 确保短剧配置有默认值
   if (!adminConfig.ShortDramaConfig) {
     adminConfig.ShortDramaConfig = {
-      primaryApiUrl: 'https://api.r2afosne.dpdns.org',
-      alternativeApiUrl: '',
-      enableAlternative: false,
+      apiUrl:
+        process.env.SHORTDRAMA_API_URL ||
+        'https://vidora-shortdrama-service.edgeone.app',
+      apiKey: process.env.SHORTDRAMA_API_KEY || '',
+      authEnabled: process.env.SHORTDRAMA_AUTH_ENABLED === 'true',
     };
   }
+
+  // 短剧API配置日志
+  logger.log('短剧API配置:', {
+    apiUrl: adminConfig.ShortDramaConfig.apiUrl,
+    authEnabled: adminConfig.ShortDramaConfig.authEnabled,
+    hasApiKey: !!adminConfig.ShortDramaConfig.apiKey,
+  });
 
   return adminConfig;
 }

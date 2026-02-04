@@ -8,6 +8,14 @@ import { logger } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// 脱敏API Key
+function maskApiKey(apiKey: string): string {
+  if (!apiKey || apiKey.length < 8) {
+    return apiKey;
+  }
+  return `${apiKey.substring(0, 4)}****${apiKey.substring(apiKey.length - 4)}`;
+}
+
 // GET 请求：获取短剧API配置
 export async function GET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
@@ -24,9 +32,11 @@ export async function GET(request: NextRequest) {
   try {
     const config = await getConfig();
     const defaultShortDramaConfig = {
-      primaryApiUrl: 'https://api.r2afosne.dpdns.org',
-      alternativeApiUrl: '',
-      enableAlternative: false,
+      apiUrl:
+        process.env.SHORTDRAMA_API_URL ||
+        'https://vidora-shortdrama-service.edgeone.app',
+      apiKey: '',
+      authEnabled: process.env.SHORTDRAMA_AUTH_ENABLED === 'true',
     };
 
     // 合并默认配置和实际配置
@@ -35,7 +45,13 @@ export async function GET(request: NextRequest) {
       ...(config.ShortDramaConfig || {}),
     };
 
-    return NextResponse.json(shortDramaConfig);
+    // 脱敏API Key后再返回
+    const response = {
+      ...shortDramaConfig,
+      apiKey: maskApiKey(shortDramaConfig.apiKey || ''),
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     logger.error('获取短剧API配置失败:', error);
     return NextResponse.json({ error: '获取短剧API配置失败' }, { status: 500 });
@@ -63,10 +79,12 @@ export async function POST(request: NextRequest) {
 
     // 更新或创建 ShortDramaConfig
     config.ShortDramaConfig = {
-      primaryApiUrl:
-        shortDramaSettings.primaryApiUrl || 'https://api.r2afosne.dpdns.org',
-      alternativeApiUrl: shortDramaSettings.alternativeApiUrl || '',
-      enableAlternative: shortDramaSettings.enableAlternative ?? false,
+      apiUrl:
+        shortDramaSettings.apiUrl ||
+        process.env.SHORTDRAMA_API_URL ||
+        'https://vidora-shortdrama-service.edgeone.app',
+      apiKey: shortDramaSettings.apiKey || '',
+      authEnabled: shortDramaSettings.authEnabled ?? false,
     };
 
     // 保存完整配置

@@ -123,6 +123,34 @@ async function initShortdramaCache(): Promise<void> {
   logger.log('短剧缓存系统已初始化');
 }
 
+// 清除特定缓存
+async function clearCache(pattern: string): Promise<void> {
+  try {
+    // 清理统一存储中的匹配缓存
+    await ClientCache.clearExpired(pattern);
+
+    // 清理localStorage中的匹配缓存
+    if (typeof localStorage !== 'undefined') {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(pattern)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+      logger.log(`已清除 ${keysToRemove.length} 个匹配 '${pattern}' 的缓存`);
+    }
+  } catch (e) {
+    logger.warn('清除缓存失败:', e);
+  }
+}
+
+// 清除分类缓存
+export async function clearCategoriesCache(): Promise<void> {
+  await clearCache('shortdrama-categories-');
+}
+
 // 在模块加载时初始化缓存系统
 if (typeof window !== 'undefined') {
   initShortdramaCache().catch(logger.error);

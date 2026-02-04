@@ -9,7 +9,8 @@ import { CapsuleSelector } from './CapsuleSelector';
 
 interface SelectorOption {
   label: string;
-  value: string;
+  value: string | number;
+  key?: string;
 }
 
 interface ShortDramaSelectorProps {
@@ -25,78 +26,138 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
   onPrimaryChange,
   onSecondaryChange,
 }) => {
-  // 短剧分类数据
-  const [shortDramaCategories, setShortDramaCategories] = useState<
-    SelectorOption[]
-  >([]);
+  // 短剧一级分类数据
+  const [categories, setCategories] = useState<SelectorOption[]>([]);
+  // 短剧二级分类数据
+  const [subCategories, setSubCategories] = useState<SelectorOption[]>([]);
 
-  const [, setLoadingCategories] = useState(false);
-
-  // 加载短剧分类
+  // 加载一级分类
   useEffect(() => {
-    // 使用 requestAnimationFrame 来延迟 setState 调用
-    requestAnimationFrame(() => {
-      setLoadingCategories(true);
-    });
-    getShortDramaCategories()
-      .then((categories) => {
-        const options = categories.map((cat) => ({
-          label: cat.type_name,
-          value: cat.type_id.toString(),
+    const loadCategories = async () => {
+      try {
+        const data = await getShortDramaCategories();
+        logger.log('获取到的短剧分类数据:', data);
+
+        const options = data.map((cat, idx: number) => ({
+          label: cat.type_name || cat.name,
+          value: cat.type_id ?? cat.id ?? idx,
+          key: `category-${cat.type_id ?? cat.id ?? idx}`,
         }));
-        setShortDramaCategories(options);
-      })
-      .catch((error) => {
+
+        logger.log('转换后的分类选项:', options);
+        setCategories(options);
+      } catch (error) {
         logger.error('加载短剧分类失败:', error);
-      })
-      .finally(() => {
-        setLoadingCategories(false);
-      });
+      }
+    };
+
+    loadCategories();
   }, []);
 
-  // 短剧一级选择器选项（分类）- 使用 useMemo 缓存
-  const primaryOptions: SelectorOption[] = useMemo(
-    () => [
-      { label: '全部', value: '全部' },
-      { label: '随机推荐', value: '随机推荐' },
-    ],
-    [],
-  );
+  // 根据一级分类值计算二级分类
+  const subCategoriesForPrimary = useMemo(() => {
+    if (!primarySelection) {
+      return [];
+    }
 
-  // 短剧二级选择器选项（类型）- 根据分类动态生成
+    const categoryId =
+      typeof primarySelection === 'string'
+        ? parseInt(primarySelection)
+        : primarySelection;
+
+    if (isNaN(categoryId)) {
+      return [];
+    }
+
+    return subCategories;
+  }, [primarySelection, subCategories]);
+
+  // 当一级分类改变时，加载对应的二级分类
+  useEffect(() => {
+    if (!primarySelection) {
+      return;
+    }
+
+    const categoryId =
+      typeof primarySelection === 'string'
+        ? parseInt(primarySelection)
+        : primarySelection;
+
+    if (isNaN(categoryId)) {
+      return;
+    }
+
+    // 调用内部API获取二级分类
+    fetch(`/api/shortdrama/sub-categories?categoryId=${categoryId}`)
+      .then((response) => response.json())
+      .then((data) => {
+        // 检查是否是错误响应
+        if (data.error) {
+          setSubCategories([]);
+          return;
+        }
+
+        // 处理二级分类数据
+        const options = Array.isArray(data)
+          ? data.map((cat: { name: string; id: number }, idx: number) => ({
+              label: cat.name,
+              value: cat.id ?? idx,
+              key: `subcategory-${cat.id ?? idx}`,
+            }))
+          : [];
+
+        setSubCategories(options);
+
+        // 自动选择第一个二级分类（只在首次加载时或值为'all'时）
+        if (
+          options.length > 0 &&
+          (!secondarySelection || secondarySelection === 'all')
+        ) {
+          onSecondaryChange(options[0].value);
+        }
+      })
+      .catch(() => {
+        setSubCategories([]);
+      });
+  }, [primarySelection, onSecondaryChange, secondarySelection]);
+
+  // 短剧一级选择器选项（分类）- 直接显示所有分类
+  const primaryOptions: SelectorOption[] = useMemo(() => {
+    const categoryOptions = categories.map((cat) => ({
+      label: cat.label,
+      value: cat.value,
+      key: cat.key,
+    }));
+
+    logger.log('一级选择器选项:', categoryOptions);
+    return categoryOptions;
+  }, [categories]);
+
+  // 短剧二级选择器选项（类型）
   const secondaryOptions: SelectorOption[] = useMemo(() => {
-    // 如果是"全部"，显示所有分类（不包含"全部"）
-    if (primarySelection === '全部') {
-      return shortDramaCategories;
-    }
-    // 如果是"随机推荐"，只显示"全部"
-    if (primarySelection === '随机推荐') {
-      return [{ label: '全部', value: 'all' }];
-    }
-    // 其他情况，只显示"全部"
-    return [{ label: '全部', value: 'all' }];
-  }, [primarySelection, shortDramaCategories]);
-
-  // 是否显示类型选择器（当分类为"随机推荐"时不显示）
-  const showTypeSelector = primarySelection !== '随机推荐';
+    // 直接返回二级分类
+    return subCategoriesForPrimary;
+  }, [subCategoriesForPrimary]);
 
   return (
     <div className='space-y-4 sm:space-y-6'>
       {/* 一级选择器（分类） */}
-      <CapsuleSelector
-        label='分类'
-        options={primaryOptions}
-        value={primarySelection || primaryOptions[0].value}
-        onChange={onPrimaryChange}
-        enableVirtualScroll={true}
-      />
+      {primaryOptions.length > 0 && (
+        <CapsuleSelector
+          label='分类'
+          options={primaryOptions}
+          value={primarySelection || primaryOptions[0]?.value}
+          onChange={onPrimaryChange}
+          enableVirtualScroll={true}
+        />
+      )}
 
-      {/* 二级选择器（类型）- 当分类为"随机推荐"时不显示 */}
-      {showTypeSelector && (
+      {/* 二级选择器（类型） */}
+      {primarySelection && secondaryOptions.length > 0 && (
         <CapsuleSelector
           label='类型'
           options={secondaryOptions}
-          value={secondarySelection || secondaryOptions[0]?.value || 'all'}
+          value={secondarySelection || secondaryOptions[0]?.value}
           onChange={onSecondaryChange}
           enableVirtualScroll={true}
         />

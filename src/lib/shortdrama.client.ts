@@ -3,6 +3,7 @@
 import { logger } from '@/lib/logger';
 
 import {
+  clearCategoriesCache,
   getCache,
   getCacheKey,
   setCache,
@@ -16,18 +17,27 @@ import {
 import { getRandomUserAgent } from './user-agent';
 
 // 获取短剧分类列表
-export async function getShortDramaCategories(): Promise<ShortDramaCategory[]> {
+export async function getShortDramaCategories(
+  forceRefresh = false,
+): Promise<ShortDramaCategory[]> {
   const cacheKey = getCacheKey('categories', {});
 
   try {
+    // 如果强制刷新，先清除缓存
+    if (forceRefresh) {
+      await clearCategoriesCache();
+    }
+
     const cached = await getCache<ShortDramaCategory[]>(cacheKey);
-    if (cached) {
+    if (cached && !forceRefresh) {
       return cached;
     }
 
     // 统一使用内部 API
     const apiUrl = `/api/shortdrama/categories`;
-    const response = await fetch(apiUrl);
+    const response = await fetch(apiUrl, {
+      cache: 'no-store',
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -86,11 +96,11 @@ export async function getRecommendedShortDramas(
 
 // 获取分类短剧列表（分页）
 export async function getShortDramaList(
-  category: number,
   page = 1,
   size = 20,
+  subCategoryId?: number,
 ): Promise<{ list: ShortDramaItem[]; hasMore: boolean }> {
-  const cacheKey = getCacheKey('lists', { category, page, size });
+  const cacheKey = getCacheKey('lists', { page, size, subCategoryId });
 
   try {
     const cached = await getCache<{ list: ShortDramaItem[]; hasMore: boolean }>(
@@ -101,7 +111,10 @@ export async function getShortDramaList(
     }
 
     // 统一使用内部 API
-    const apiUrl = `/api/shortdrama/list?categoryId=${category}&page=${page}&size=${size}`;
+    let apiUrl = `/api/shortdrama/list?page=${page}&size=${size}`;
+    if (subCategoryId !== undefined) {
+      apiUrl += `&subCategoryId=${subCategoryId}`;
+    }
     const response = await fetch(apiUrl);
 
     if (!response.ok) {
@@ -123,7 +136,7 @@ export async function getShortDramaList(
         : SHORTDRAMA_CACHE_EXPIRE.lists;
 
     await setCache(cacheKey, finalResult, cacheTime);
-    logger.log(`短剧列表已缓存: category=${category}, page=${page}`);
+    logger.log(`短剧列表已缓存: page=${page}`);
 
     return finalResult;
   } catch (error) {

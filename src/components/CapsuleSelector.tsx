@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 export interface CapsuleOption {
   label: string;
   value: string | number;
+  key?: string;
 }
 
 export interface CapsuleSelectorProps {
@@ -116,12 +117,12 @@ export function CapsuleSelector({
           const isActive = option.value === value;
           return (
             <button
-              key={option.value}
+              key={option.key ?? option.value ?? index}
               ref={(el) => {
                 buttonRefs.current[index] = el ?? null;
               }}
               onClick={() => onChange(option.value)}
-              className={`relative z-10 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 flex-shrink-0 ${
+              className={`relative z-10 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 flex-shrink-0 whitespace-nowrap ${
                 isActive
                   ? 'text-gray-900 dark:text-gray-100'
                   : 'text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
