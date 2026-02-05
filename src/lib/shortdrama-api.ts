@@ -19,6 +19,7 @@ export interface ShortDramaApiResponse<T = unknown> {
 export interface ShortDramaCategory {
   id: number;
   name: string;
+  created_at?: string;
 }
 
 export interface ShortDramaSubCategory {

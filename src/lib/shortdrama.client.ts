@@ -64,6 +64,10 @@ export async function getShortDramaCategories(
         '',
       );
 
+      logger.log(
+        `分类数据: 找到 ${categories.length} 个分类，最新时间戳: ${latestTimestamp || '无'}`,
+      );
+
       // 如果时间戳更新了，或者没有缓存，则更新缓存
       if (
         !cachedTimestamp ||
@@ -80,7 +84,9 @@ export async function getShortDramaCategories(
           latestTimestamp,
           SHORTDRAMA_CACHE_EXPIRE.categories,
         );
-        logger.log(`分类缓存已更新，时间戳: ${latestTimestamp}`);
+        logger.log(`分类缓存已更新，时间戳: ${latestTimestamp || '无'}`);
+      } else {
+        logger.log(`分类缓存未更新，时间戳未变化: ${cachedTimestamp}`);
       }
     }
 

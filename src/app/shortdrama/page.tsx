@@ -131,16 +131,13 @@ function ShortDramaPageClient() {
         }
       } catch (err) {
         logger.error('加载分类失败:', err);
+      } finally {
+        // 无论成功失败都设置选择器已就绪
+        setSelectorsReady(true);
       }
     };
 
     initDefaults();
-
-    const timer = setTimeout(() => {
-      setSelectorsReady(true);
-    }, 50);
-
-    return () => clearTimeout(timer);
   }, []); // 只在组件挂载时执行一次
 
   // 生成骨架屏数据
