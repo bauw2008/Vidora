@@ -21,6 +21,7 @@ export async function getShortDramaCategories(
   forceRefresh = false,
 ): Promise<ShortDramaCategory[]> {
   const cacheKey = getCacheKey('categories', {});
+  const timestampKey = `${cacheKey}-timestamp`;
 
   try {
     // 如果强制刷新，先清除缓存
@@ -28,8 +29,11 @@ export async function getShortDramaCategories(
       await clearCategoriesCache();
     }
 
+    // 获取缓存的分类和时间戳
     const cached = await getCache<ShortDramaCategory[]>(cacheKey);
-    if (cached && !forceRefresh) {
+    const cachedTimestamp = await getCache<string>(timestampKey);
+
+    if (cached && cachedTimestamp && !forceRefresh) {
       return cached;
     }
 
@@ -50,8 +54,36 @@ export async function getShortDramaCategories(
       | ShortDramaCategory[];
     const categories = Array.isArray(result) ? result : result.list || [];
 
-    // 缓存结果
-    await setCache(cacheKey, categories, SHORTDRAMA_CACHE_EXPIRE.categories);
+    // 只缓存成功且非空的结果
+    if (categories && categories.length > 0) {
+      // 获取最新的 created_at 时间戳
+      const latestTimestamp = categories.reduce(
+        (max: string, cat: ShortDramaCategory & { created_at?: string }) => {
+          return cat.created_at && cat.created_at > max ? cat.created_at : max;
+        },
+        '',
+      );
+
+      // 如果时间戳更新了，或者没有缓存，则更新缓存
+      if (
+        !cachedTimestamp ||
+        latestTimestamp > cachedTimestamp ||
+        forceRefresh
+      ) {
+        await setCache(
+          cacheKey,
+          categories,
+          SHORTDRAMA_CACHE_EXPIRE.categories,
+        );
+        await setCache(
+          timestampKey,
+          latestTimestamp,
+          SHORTDRAMA_CACHE_EXPIRE.categories,
+        );
+        logger.log(`分类缓存已更新，时间戳: ${latestTimestamp}`);
+      }
+    }
+
     return categories;
   } catch (error) {
     logger.error('获取短剧分类失败:', error);

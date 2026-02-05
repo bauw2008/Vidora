@@ -309,7 +309,9 @@ export async function getRecommendedShortDramas(
 export async function getShortDramaDetail(
   vodId: number,
 ): Promise<ShortDramaDetail | null> {
-  const result = await callShortDramaAPI<ShortDramaDetail>(`/detail/${vodId}`);
+  const result = await callShortDramaAPI<ShortDramaDetail>('/detail', {
+    params: { vodId },
+  });
 
   if (!result.success || !result.data) {
     logger.error('获取短剧详情失败:', result.error);
@@ -327,16 +329,28 @@ export async function getShortDramaPlayUrl(
   vodId: number,
   episode: number,
 ): Promise<ShortDramaPlayData | null> {
-  // 播放页面集数从 0 开始，API 集数从 1 开始
-  const apiEpisode = episode + 1;
-  const result = await callShortDramaAPI<ShortDramaPlayData>(
-    `/play/${vodId}/${apiEpisode}`,
-  );
+  // 先获取视频详情，包含播放链接
+  const detail = await getShortDramaDetail(vodId);
 
-  if (!result.success || !result.data) {
-    logger.error('获取短剧播放链接失败:', result.error);
+  if (!detail || !detail.play_urls || detail.play_urls.length === 0) {
+    logger.error('获取短剧播放链接失败: 没有播放数据');
     return null;
   }
 
-  return result.data;
+  // 找到对应集数的播放链接
+  const playUrl = detail.play_urls.find((p) => p.episode === episode + 1);
+
+  if (!playUrl) {
+    logger.error(`获取短剧播放链接失败: 集数 ${episode + 1} 不存在`);
+    return null;
+  }
+
+  return {
+    url: playUrl.url,
+    episode: episode,
+    totalEpisodes: detail.episode_count,
+    name: detail.name,
+    cover: detail.cover,
+    description: detail.description,
+  };
 }

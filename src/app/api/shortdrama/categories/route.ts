@@ -22,16 +22,10 @@ export async function GET() {
 
     const categories = await getShortDramaCategories();
 
-    // 转换为新旧格式兼容
-    const formattedCategories = categories.map((item) => ({
-      type_id: item.id,
-      type_name: item.name,
-    }));
-
     // 只在成功时保存到缓存
-    await db.setCache(cacheKey, formattedCategories, CACHE_TTL);
+    await db.setCache(cacheKey, categories, CACHE_TTL);
 
-    const response = NextResponse.json(formattedCategories);
+    const response = NextResponse.json(categories);
     response.headers.set(
       'Cache-Control',
       'no-cache, no-store, must-revalidate',

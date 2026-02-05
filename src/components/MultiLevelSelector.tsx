@@ -68,8 +68,8 @@ const MultiLevelSelector: React.FC<MultiLevelSelectorProps> = ({
       getShortDramaCategories()
         .then((categories) => {
           const options = categories.map((cat) => ({
-            label: cat.type_name,
-            value: cat.type_id.toString(),
+            label: cat.name,
+            value: cat.id.toString(),
           }));
           setShortDramaCategories([
             { label: '全部', value: 'all' },

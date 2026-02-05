@@ -365,10 +365,9 @@ export interface ContentStat {
 
 // 短剧分类
 export interface ShortDramaCategory {
-  type_id: number;
-  type_name: string;
-  id?: number;
-  name?: string;
+  id: number;
+  name: string;
+  sub_categories?: Array<{ id: number; name: string }>;
 }
 
 // 短剧项目

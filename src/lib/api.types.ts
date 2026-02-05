@@ -176,8 +176,9 @@ export interface JarTestResult {
 
 // 短剧相关类型
 export interface ShortDramaCategory {
-  type_id: number;
-  type_name: string;
+  id: number;
+  name: string;
+  sub_categories?: Array<{ id: number; name: string }>;
 }
 
 export interface ShortDramaItem {
