@@ -114,7 +114,8 @@ export function CapsuleSelector({
 
         {/* 选项按钮 */}
         {options.map((option, index) => {
-          const isActive = option.value === value;
+          const isActive =
+            option.value === value || (value === 0 && option.value === 0);
           return (
             <button
               key={option.key ?? option.value ?? index}

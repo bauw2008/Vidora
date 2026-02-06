@@ -19,7 +19,8 @@ export interface ShortDramaApiResponse<T = unknown> {
 export interface ShortDramaCategory {
   id: number;
   name: string;
-  created_at?: string;
+  version: string;
+  sub_categories?: Array<{ id: number; name: string }>;
 }
 
 export interface ShortDramaSubCategory {
@@ -178,15 +179,48 @@ export async function callShortDramaAPI<T = unknown>(
 /**
  * 获取分类列表
  */
-export async function getShortDramaCategories(): Promise<ShortDramaCategory[]> {
-  const result = await callShortDramaAPI<ShortDramaCategory[]>('/categories');
+export async function getShortDramaCategories(): Promise<
+  ShortDramaApiResponse<{
+    success: boolean;
+    data: Array<{
+      id: number;
+      name: string;
+      sort: number;
+      is_active: boolean;
+      sub_categories: Array<{ id: number; name: string; category_id: number }>;
+    }>;
+    version: string;
+  }>
+> {
+  const result = await callShortDramaAPI<unknown>('/categories');
 
   if (!result.success || !result.data) {
     logger.error('获取短剧分类失败:', result.error);
-    return [];
+    return {
+      success: false,
+      error: result.error || '获取短剧分类失败',
+    };
   }
 
-  return result.data;
+  // 返回原始的 API 响应格式
+  return {
+    success: true,
+    data: result.data as {
+      success: boolean;
+      data: Array<{
+        id: number;
+        name: string;
+        sort: number;
+        is_active: boolean;
+        sub_categories: Array<{
+          id: number;
+          name: string;
+          category_id: number;
+        }>;
+      }>;
+      version: string;
+    },
+  };
 }
 
 /**
@@ -218,21 +252,21 @@ export async function getShortDramaSubCategories(
 
 /**
  * 获取视频列表
- * 注意：数据库中使用 sub_category_id 进行筛选，category_id 为空值
+ * 注意：使用 tag 参数（二级分类名称）进行筛选，一级分类仅用于展示
  */
 export async function getShortDramaList(
   page = 1,
   pageSize = 20,
-  subCategoryId?: number,
+  tag?: string,
 ): Promise<{ list: ShortDramaItem[]; hasMore: boolean; total?: number }> {
   const params: Record<string, string | number> = {
     page,
     pageSize,
   };
 
-  // 只传递 subCategoryId，因为数据库中 category_id 是空的
-  if (subCategoryId !== undefined) {
-    params.subCategoryId = subCategoryId;
+  // 使用 tag 参数（二级分类名称）进行筛选
+  if (tag) {
+    params.tag = tag;
   }
 
   const result = await callShortDramaAPI<ShortDramaItem[]>('/list', { params });

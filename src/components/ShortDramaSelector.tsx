@@ -15,7 +15,7 @@ interface SelectorOption {
 
 interface ShortDramaSelectorProps {
   primarySelection?: number;
-  secondarySelection?: number;
+  secondarySelection?: string;
   onPrimaryChange: (value: string | number) => void;
   onSecondaryChange: (value: string | number) => void;
 }
@@ -40,8 +40,10 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const data = await getShortDramaCategories();
-        setCategoriesData(data);
+        const categories = await getShortDramaCategories();
+
+        // API 已经返回了完整的分类数据（包含 sub_categories）
+        setCategoriesData(categories);
       } catch (error) {
         logger.error('加载短剧分类失败:', error);
       }
@@ -75,7 +77,7 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
     return selectedCategory.sub_categories.map(
       (sub: { id: number; name: string }) => ({
         label: sub.name,
-        value: sub.id,
+        value: sub.name, // 使用名称而不是 ID
         key: `subcategory-${sub.id}`,
       }),
     );
@@ -95,7 +97,7 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
     ) {
       // 一级分类改变了，选择第一个二级分类
       if (subCategoriesForPrimary.length > 0) {
-        onSecondaryChange(subCategoriesForPrimary[0].value as number);
+        onSecondaryChange(subCategoriesForPrimary[0].value);
       }
     }
 
@@ -113,7 +115,7 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
         firstCategory.sub_categories &&
         firstCategory.sub_categories.length > 0
       ) {
-        onSecondaryChange(firstCategory.sub_categories[0].id);
+        onSecondaryChange(firstCategory.sub_categories[0].name); // 使用名称而不是 ID
       }
     }
   }, [categoriesData, primarySelection, onPrimaryChange, onSecondaryChange]);

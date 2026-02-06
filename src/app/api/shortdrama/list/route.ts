@@ -13,11 +13,10 @@ const CACHE_TTL = 2 * 60 * 60; // 2小时
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
-    const subCategoryId = searchParams.get('subCategoryId');
+    const subCategoryName = searchParams.get('tag');
     const page = searchParams.get('page');
     const size = searchParams.get('size');
 
-    const subCategory = subCategoryId ? parseInt(subCategoryId) : undefined;
     const pageNum = page ? parseInt(page) : 1;
     const pageSize = size ? parseInt(size) : 20;
 
@@ -26,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 生成缓存key
-    const cacheKey = `shortdrama-list:${pageNum}:${pageSize}:${subCategory || 'all'}`;
+    const cacheKey = `shortdrama-list:${pageNum}:${pageSize}:${subCategoryName || 'all'}`;
 
     // 尝试从缓存获取
     const cached = await db.getCache(cacheKey);
@@ -34,7 +33,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached);
     }
 
-    const result = await getShortDramaList(pageNum, pageSize, subCategory);
+    const result = await getShortDramaList(
+      pageNum,
+      pageSize,
+      subCategoryName || undefined,
+    );
 
     // 转换为新旧格式兼容
     const formattedList = result.list.map((item: ShortDramaItem) => ({
@@ -71,13 +74,12 @@ export async function GET(request: NextRequest) {
 
     // 发生错误时删除相关缓存
     const { searchParams } = request.nextUrl;
-    const subCategoryId = searchParams.get('subCategoryId');
+    const subCategoryName = searchParams.get('tag');
     const page = searchParams.get('page');
     const size = searchParams.get('size');
-    const subCategory = subCategoryId ? parseInt(subCategoryId) : undefined;
     const pageNum = page ? parseInt(page) : 1;
     const pageSize = size ? parseInt(size) : 20;
-    const cacheKey = `shortdrama-list:${pageNum}:${pageSize}:${subCategory || 'all'}`;
+    const cacheKey = `shortdrama-list:${pageNum}:${pageSize}:${subCategoryName || 'all'}`;
 
     // 删除可能存在的错误缓存
     await db.deleteCache(cacheKey).catch(() => {

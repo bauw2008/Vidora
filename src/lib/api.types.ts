@@ -178,6 +178,8 @@ export interface JarTestResult {
 export interface ShortDramaCategory {
   id: number;
   name: string;
+  version: string;
+  created_at?: string;
   sub_categories?: Array<{ id: number; name: string }>;
 }
 

@@ -88,14 +88,14 @@ function ShortDramaPageClient() {
   const loadingRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 短剧选择器状态 - 使用数字类型
+  // 短剧选择器状态 - 使用字符串类型存储二级分类名称
   const [shortDramaCategory, setShortDramaCategory] = useState<number>(0);
-  const [shortDramaType, setShortDramaType] = useState<number>(0);
+  const [shortDramaType, setShortDramaType] = useState<string>('');
 
   // 用于存储最新参数值的 refs
   const currentParamsRef = useRef({
     shortDramaCategory: 0,
-    shortDramaType: 0,
+    shortDramaType: '',
     currentPage: 0,
   });
 
@@ -118,15 +118,17 @@ function ShortDramaPageClient() {
     const initDefaults = async () => {
       try {
         const categories = await getShortDramaCategories();
+
+        // API 已经返回了完整的分类数据（包含 sub_categories）
         if (categories.length > 0) {
           // 设置默认一级分类为第一个分类
           setShortDramaCategory(categories[0].id);
-          // 设置默认二级分类为第一个子分类
+          // 设置默认二级分类为第一个子分类的名称
           if (
             categories[0].sub_categories &&
             categories[0].sub_categories.length > 0
           ) {
-            setShortDramaType(categories[0].sub_categories[0].id);
+            setShortDramaType(categories[0].sub_categories[0].name);
           }
         }
       } catch (err) {
@@ -165,15 +167,10 @@ function ShortDramaPageClient() {
 
       let data: DoubanResult;
 
-      // 确定要使用的二级分类ID
-      let subCategoryId: number | undefined;
+      // 使用二级分类名称作为 tag 参数
+      const tag = shortDramaType || undefined;
 
-      // 如果选择了二级分类，使用二级分类ID作为subCategoryId
-      if (shortDramaType && shortDramaType !== 0) {
-        subCategoryId = shortDramaType;
-      }
-
-      const result = await getShortDramaList(1, 25, subCategoryId);
+      const result = await getShortDramaList(1, 25, tag);
 
       data = {
         code: 200,
@@ -260,18 +257,10 @@ function ShortDramaPageClient() {
 
         let data: DoubanResult;
 
-        // 确定要使用的二级分类ID
-        let subCategoryId: number | undefined;
+        // 使用二级分类名称作为 tag 参数
+        const tag = shortDramaType || undefined;
 
-        if (shortDramaType && shortDramaType !== 0) {
-          subCategoryId = shortDramaType;
-        }
-
-        const result = await getShortDramaList(
-          currentPage + 1,
-          25,
-          subCategoryId,
-        );
+        const result = await getShortDramaList(currentPage + 1, 25, tag);
 
         data = {
           code: 200,
@@ -372,14 +361,15 @@ function ShortDramaPageClient() {
 
   const handleTypeChange = useCallback(
     (value: string | number) => {
-      const numValue = Number(value);
-      if (numValue !== shortDramaType) {
+      // value 是二级分类的名称（字符串）
+      const stringValue = String(value);
+      if (stringValue !== shortDramaType) {
         setLoading(true);
         setCurrentPage(0);
         setDoubanData([]);
         setHasMore(true);
         setIsLoadingMore(false);
-        setShortDramaType(numValue);
+        setShortDramaType(stringValue);
       }
     },
     [shortDramaType],
@@ -525,6 +515,7 @@ function ShortDramaPageClient() {
                   secondarySelection={shortDramaType}
                   onPrimaryChange={handleCategoryChange}
                   onSecondaryChange={handleTypeChange}
+                  key={`${shortDramaCategory}-${shortDramaType}`}
                 />
               </div>
             </div>

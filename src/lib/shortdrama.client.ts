@@ -21,7 +21,11 @@ export async function getShortDramaCategories(
   forceRefresh = false,
 ): Promise<ShortDramaCategory[]> {
   const cacheKey = getCacheKey('categories', {});
+  const versionKey = `${cacheKey}-version`;
   const timestampKey = `${cacheKey}-timestamp`;
+
+  // 强制刷新时间（秒），即使 version 未变化，超过此时间也会强制重新获取
+  const FORCE_REFRESH_TTL = 24 * 60 * 60; // 24小时
 
   try {
     // 如果强制刷新，先清除缓存
@@ -29,12 +33,19 @@ export async function getShortDramaCategories(
       await clearCategoriesCache();
     }
 
-    // 获取缓存的分类和时间戳
+    // 获取缓存的分类、version和时间戳
     const cached = await getCache<ShortDramaCategory[]>(cacheKey);
-    const cachedTimestamp = await getCache<string>(timestampKey);
+    const cachedVersion = await getCache<string>(versionKey);
+    const cachedTimestamp = await getCache<number>(timestampKey);
+    const now = Date.now();
 
-    if (cached && cachedTimestamp && !forceRefresh) {
-      return cached;
+    // 如果有缓存且未过期
+    if (cached && cachedVersion && cachedTimestamp && !forceRefresh) {
+      // 检查是否超过强制刷新时间
+      if (now - cachedTimestamp < FORCE_REFRESH_TTL * 1000) {
+        logger.log('使用缓存的短剧分类数据，version:', cachedVersion);
+        return cached;
+      }
     }
 
     // 统一使用内部 API
@@ -48,45 +59,56 @@ export async function getShortDramaCategories(
     }
 
     const data = await response.json();
+
+    // 检查是否是错误响应
+    if (data.error) {
+      logger.error('API 返回错误:', data.error);
+      // 如果有旧缓存，返回旧缓存
+      if (cached) {
+        logger.log('API 返回错误，使用旧缓存数据');
+        return cached;
+      }
+      return [];
+    }
+
     // 内部API直接返回数组
-    const result = data as
-      | { list?: ShortDramaCategory[] }
-      | ShortDramaCategory[];
-    const categories = Array.isArray(result) ? result : result.list || [];
+    const categories = Array.isArray(data) ? data : [];
 
     // 只缓存成功且非空的结果
     if (categories && categories.length > 0) {
-      // 获取最新的 created_at 时间戳
-      const latestTimestamp = categories.reduce(
-        (max: string, cat: ShortDramaCategory & { created_at?: string }) => {
-          return cat.created_at && cat.created_at > max ? cat.created_at : max;
-        },
-        '',
-      );
+      // 从第一个分类获取 version（所有分类的 version 都相同）
+      const categoriesVersion = categories[0]?.version || '0';
 
       logger.log(
-        `分类数据: 找到 ${categories.length} 个分类，最新时间戳: ${latestTimestamp || '无'}`,
+        `分类数据: 找到 ${categories.length} 个分类，version: ${categoriesVersion}`,
       );
 
-      // 如果时间戳更新了，或者没有缓存，则更新缓存
-      if (
-        !cachedTimestamp ||
-        latestTimestamp > cachedTimestamp ||
-        forceRefresh
-      ) {
+      // 检查 version 是否变化，或者是否超过强制刷新时间
+      let shouldUpdateCache = true;
+      if (cachedVersion && cachedTimestamp && !forceRefresh) {
+        if (
+          cachedVersion === categoriesVersion &&
+          now - cachedTimestamp < FORCE_REFRESH_TTL * 1000
+        ) {
+          // version 未变化且未超过强制刷新时间，不更新缓存
+          shouldUpdateCache = false;
+          logger.log('分类 version 未变化，保持缓存:', cachedVersion);
+        }
+      }
+
+      if (shouldUpdateCache) {
         await setCache(
           cacheKey,
           categories,
           SHORTDRAMA_CACHE_EXPIRE.categories,
         );
         await setCache(
-          timestampKey,
-          latestTimestamp,
+          versionKey,
+          categoriesVersion,
           SHORTDRAMA_CACHE_EXPIRE.categories,
         );
-        logger.log(`分类缓存已更新，时间戳: ${latestTimestamp || '无'}`);
-      } else {
-        logger.log(`分类缓存未更新，时间戳未变化: ${cachedTimestamp}`);
+        await setCache(timestampKey, now, SHORTDRAMA_CACHE_EXPIRE.categories);
+        logger.log('分类缓存已更新，version:', categoriesVersion);
       }
     }
 
@@ -136,9 +158,9 @@ export async function getRecommendedShortDramas(
 export async function getShortDramaList(
   page = 1,
   size = 20,
-  subCategoryId?: number,
+  tag?: string,
 ): Promise<{ list: ShortDramaItem[]; hasMore: boolean }> {
-  const cacheKey = getCacheKey('lists', { page, size, subCategoryId });
+  const cacheKey = getCacheKey('lists', { page, size, tag });
 
   try {
     const cached = await getCache<{ list: ShortDramaItem[]; hasMore: boolean }>(
@@ -150,8 +172,8 @@ export async function getShortDramaList(
 
     // 统一使用内部 API
     let apiUrl = `/api/shortdrama/list?page=${page}&size=${size}`;
-    if (subCategoryId !== undefined) {
-      apiUrl += `&subCategoryId=${subCategoryId}`;
+    if (tag) {
+      apiUrl += `&tag=${encodeURIComponent(tag)}`;
     }
     const response = await fetch(apiUrl);
 
