@@ -119,41 +119,6 @@ export async function getShortDramaCategories(
   }
 }
 
-// 获取推荐短剧列表
-export async function getRecommendedShortDramas(
-  category?: number,
-  size = 10,
-): Promise<ShortDramaItem[]> {
-  const cacheKey = getCacheKey('recommends', { category, size });
-
-  try {
-    const cached = await getCache<ShortDramaItem[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // 统一使用内部 API
-    const apiUrl = `/api/shortdrama/recommend?${category ? `category=${category}&` : ''}size=${size}`;
-    const response = await fetch(apiUrl);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    // 内部API已经处理过格式
-    const result = data as { list?: ShortDramaItem[] } | ShortDramaItem[];
-    const items = Array.isArray(result) ? result : result.list || [];
-
-    // 缓存结果
-    await setCache(cacheKey, items, SHORTDRAMA_CACHE_EXPIRE.recommends);
-    return items;
-  } catch (error) {
-    logger.error('获取推荐短剧失败:', error);
-    return [];
-  }
-}
-
 // 获取分类短剧列表（分页）
 export async function getShortDramaList(
   page = 1,

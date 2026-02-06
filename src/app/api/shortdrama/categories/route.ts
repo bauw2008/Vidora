@@ -17,19 +17,6 @@ const CACHE_TIMESTAMP_KEY = 'shortdrama-categories-timestamp';
 // 强制刷新时间（秒），即使 version 未变化，超过此时间也会强制重新获取
 const FORCE_REFRESH_TTL = 24 * 60 * 60; // 24小时
 
-// API 返回的完整数据结构
-interface ShortDramaCategoriesResponse {
-  success: boolean;
-  data: Array<{
-    id: number;
-    name: string;
-    sort: number;
-    is_active: boolean;
-    sub_categories: Array<{ id: number; name: string; category_id: number }>;
-  }>;
-  version: string;
-}
-
 // 转换后的分类数据结构（用于缓存和返回给客户端）
 interface ShortDramaCategoryWithVersion extends ShortDramaCategory {
   version: string;
@@ -76,9 +63,14 @@ export async function GET() {
       return NextResponse.json({ error: '获取分类数据失败' }, { status: 500 });
     }
 
-    const responseData: ShortDramaCategoriesResponse =
-      apiResult as unknown as ShortDramaCategoriesResponse;
-    const { data: categoriesData, version: apiVersion } = responseData;
+    const categoriesData = apiResult.data as unknown as Array<{
+      id: number;
+      name: string;
+      sort: number;
+      is_active: boolean;
+      sub_categories: Array<{ id: number; name: string; category_id: number }>;
+    }>;
+    const apiVersion = (apiResult as { version?: string }).version || '1';
 
     if (!categoriesData || categoriesData.length === 0) {
       logger.warn('获取到的短剧分类数据为空');
@@ -89,7 +81,6 @@ export async function GET() {
       }
       return NextResponse.json([]);
     }
-
     // 转换数据格式，将 version 添加到每个分类中
     const categories: ShortDramaCategoryWithVersion[] = categoriesData.map(
       (cat) => ({

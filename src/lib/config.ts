@@ -696,9 +696,7 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   // 确保短剧配置有默认值
   if (!adminConfig.ShortDramaConfig) {
     adminConfig.ShortDramaConfig = {
-      apiUrl:
-        process.env.SHORTDRAMA_API_URL ||
-        'https://vidora-shortdrama-service.edgeone.app',
+      apiUrl: process.env.SHORTDRAMA_API_URL || '',
       apiKey: process.env.SHORTDRAMA_API_KEY || '',
       authEnabled: process.env.SHORTDRAMA_AUTH_ENABLED === 'true',
     };

@@ -7,7 +7,6 @@ const SHORTDRAMA_CACHE_EXPIRE = {
   details: 4 * 60 * 60, // 详情4小时（变化较少）
   lists: 2 * 60 * 60, // 列表2小时（更新频繁）
   categories: 4 * 60 * 60, // 分类4小时（很少变化）
-  recommends: 1 * 60 * 60, // 推荐1小时（经常更新）
   episodes: 24 * 60 * 60, // 集数24小时（基本不变）
   parse: 30 * 60, // 解析结果30分钟（URL会过期）
 };

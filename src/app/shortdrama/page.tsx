@@ -515,7 +515,6 @@ function ShortDramaPageClient() {
                   secondarySelection={shortDramaType}
                   onPrimaryChange={handleCategoryChange}
                   onSecondaryChange={handleTypeChange}
-                  key={`${shortDramaCategory}-${shortDramaType}`}
                 />
               </div>
             </div>

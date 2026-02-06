@@ -137,7 +137,7 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
   return (
     <div className='space-y-4 sm:space-y-6'>
       {/* 一级选择器（分类） */}
-      {primaryOptions.length > 0 ? (
+      {primaryOptions.length > 0 && (
         <CapsuleSelector
           label='分类'
           options={primaryOptions}
@@ -145,8 +145,6 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
           onChange={onPrimaryChange}
           enableVirtualScroll={true}
         />
-      ) : (
-        <div className='text-center text-gray-500'>加载中...</div>
       )}
 
       {/* 二级选择器（类型） */}

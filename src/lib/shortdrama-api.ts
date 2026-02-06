@@ -14,6 +14,7 @@ export interface ShortDramaApiResponse<T = unknown> {
     total: number;
     totalPages: number;
   };
+  version?: string; // 添加 version 字段
 }
 
 export interface ShortDramaCategory {
@@ -161,10 +162,12 @@ export async function callShortDramaAPI<T = unknown>(
       };
     }
 
+    // 返回完整的 data 对象,包含 version 等字段
     return {
       success: true,
       data: data.data,
       pagination: data.pagination,
+      version: (data as { version?: string }).version, // 保留 version 字段
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : '未知错误';
@@ -181,7 +184,6 @@ export async function callShortDramaAPI<T = unknown>(
  */
 export async function getShortDramaCategories(): Promise<
   ShortDramaApiResponse<{
-    success: boolean;
     data: Array<{
       id: number;
       name: string;
@@ -192,7 +194,20 @@ export async function getShortDramaCategories(): Promise<
     version: string;
   }>
 > {
-  const result = await callShortDramaAPI<unknown>('/categories');
+  const result = await callShortDramaAPI<{
+    data: Array<{
+      id: number;
+      name: string;
+      sort: number;
+      is_active: boolean;
+      sub_categories: Array<{
+        id: number;
+        name: string;
+        category_id: number;
+      }>;
+    }>;
+    version: string;
+  }>('/categories');
 
   if (!result.success || !result.data) {
     logger.error('获取短剧分类失败:', result.error);
@@ -202,25 +217,8 @@ export async function getShortDramaCategories(): Promise<
     };
   }
 
-  // 返回原始的 API 响应格式
-  return {
-    success: true,
-    data: result.data as {
-      success: boolean;
-      data: Array<{
-        id: number;
-        name: string;
-        sort: number;
-        is_active: boolean;
-        sub_categories: Array<{
-          id: number;
-          name: string;
-          category_id: number;
-        }>;
-      }>;
-      version: string;
-    },
-  };
+  // 直接返回 API 的原始数据格式
+  return result;
 }
 
 /**
@@ -311,31 +309,6 @@ export async function searchShortDramas(
     hasMore: page < totalPages,
     total,
   };
-}
-
-/**
- * 获取推荐视频
- */
-export async function getRecommendedShortDramas(
-  categoryId?: number,
-  size = 10,
-): Promise<ShortDramaItem[]> {
-  const params: Record<string, string | number> = { size };
-
-  if (categoryId !== undefined) {
-    params.categoryId = categoryId;
-  }
-
-  const result = await callShortDramaAPI<ShortDramaItem[]>('/recommend', {
-    params,
-  });
-
-  if (!result.success || !result.data) {
-    logger.error('获取推荐短剧失败:', result.error);
-    return [];
-  }
-
-  return result.data;
 }
 
 /**
