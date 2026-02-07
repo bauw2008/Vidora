@@ -46,6 +46,7 @@ export interface ShortDramaItem {
   remarks?: string;
   writer?: string;
   hits?: number;
+  tags?: string[];
 }
 
 export interface ShortDramaDetail {
@@ -66,6 +67,7 @@ export interface ShortDramaDetail {
   remarks?: string;
   hits?: number;
   score?: number;
+  tags?: string[];
 }
 
 export interface ShortDramaPlayData {

@@ -21,11 +21,16 @@ interface VideoDetailResponse {
   source: string;
   source_name: string;
   year: string;
-  description?: string;
   desc?: string;
   type_name?: string;
-  drama_name?: string;
-  metadata?: unknown;
+  tags?: string[];
+  author?: string;
+  vote_average?: number;
+  director?: string;
+  writer?: string;
+  area?: string;
+  remarks?: string;
+  hits?: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -78,22 +83,18 @@ export async function GET(request: NextRequest) {
         (_, i) => `第${i + 1}集`,
       ),
       source: 'shortdrama',
-      source_name: '短剧',
+      source_name: 'shortdrama',
       year: detail.year || new Date().getFullYear().toString(),
       desc: detail.description,
       type_name: '短剧',
-      drama_name: detail.name, // 添加别名
-      metadata: {
-        // 添加演员、导演、评分等元数据
-        author: detail.actor || '',
-        backdrop: detail.cover,
-        vote_average: detail.score || 0,
-        director: detail.director || '',
-        writer: detail.writer || '',
-        area: detail.area || '',
-        remarks: detail.remarks || '',
-        hits: detail.hits || 0,
-      },
+      tags: detail.tags || [], // 标签/分类字段
+      author: detail.actor || '',
+      vote_average: detail.score || 0, // 评分字段
+      director: detail.director || '',
+      writer: detail.writer || '',
+      area: detail.area || '',
+      remarks: detail.remarks || '',
+      hits: detail.hits || 0,
     };
 
     // 只在成功时保存到缓存

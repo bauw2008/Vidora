@@ -547,7 +547,17 @@ function PlayPageClient() {
   // 加载短剧详情（仅用于显示简介等信息，不影响源搜索）
   useEffect(() => {
     const loadShortdramaDetails = async () => {
+      logger.log(
+        '🎬 loadShortdramaDetails 调用 - shortdramaId:',
+        shortdramaId,
+        'loadingShortdramaDetails:',
+        loadingShortdramaDetails,
+        'shortdramaDetails:',
+        shortdramaDetails,
+      );
+
       if (!shortdramaId || loadingShortdramaDetails || shortdramaDetails) {
+        logger.log('🎬 loadShortdramaDetails 跳过 - 条件不满足');
         return;
       }
 
@@ -559,15 +569,22 @@ function PlayPageClient() {
         const titleParam = dramaTitle
           ? `&name=${encodeURIComponent(dramaTitle)}`
           : '';
-        const response = await fetch(
-          `/api/shortdrama/detail?id=${shortdramaId}&episode=1${titleParam}`,
-        );
+        const apiUrl = `/api/shortdrama/detail?id=${shortdramaId}&episode=1${titleParam}`;
+        logger.log('🎬 loadShortdramaDetails 请求 API:', apiUrl);
+
+        const response = await fetch(apiUrl);
         if (response.ok) {
           const data = await response.json();
+          logger.log('🎬 loadShortdramaDetails API 响应:', data);
           setShortdramaDetails(data);
+        } else {
+          logger.error(
+            '🎬 loadShortdramaDetails API 失败 - status:',
+            response.status,
+          );
         }
       } catch (error) {
-        logger.error('Failed to load shortdrama details:', error);
+        logger.error('🎬 loadShortdramaDetails 异常:', error);
       } finally {
         setLoadingShortdramaDetails(false);
       }
@@ -1906,10 +1923,7 @@ function PlayPageClient() {
               }
             } else {
               plugin.load();
-
-              if (artPlayerRef.current) {
-                artPlayerRef.current.notice.show = '暂无弹幕数据';
-              }
+              logger.log('暂无弹幕数据');
             }
           }
         } catch {
@@ -3550,7 +3564,6 @@ function PlayPageClient() {
                   artPlayerRef.current.notice.show = `已加载 ${externalDanmu.length} 条弹幕`;
                 } else {
                   logger.log('没有弹幕数据可加载');
-                  artPlayerRef.current.notice.show = '暂无弹幕数据';
                 }
               } else {
                 logger.error('弹幕插件未找到');
@@ -4322,10 +4335,9 @@ function PlayPageClient() {
               </div>
 
               {/* 详细信息（豆瓣或bangumi） */}
-              {currentSource !== 'shortdrama' &&
-                videoDoubanId !== 0 &&
-                detail &&
-                detail.source !== 'shortdrama' && (
+              {(currentSource !== 'shortdrama' || shortdramaDetails) &&
+                ((videoDoubanId !== 0 && detail?.source !== 'shortdrama') ||
+                  shortdramaDetails) && (
                   <div className='mb-4 flex-shrink-0'>
                     {/* 加载状态 */}
                     {(loadingMovieDetails || loadingBangumiDetails) &&
@@ -4585,44 +4597,88 @@ function PlayPageClient() {
                     {/* 短剧详细信息 */}
                     {(detail?.source === 'shortdrama' || shortdramaDetails) && (
                       <div className='mb-4 shrink-0'>
-                        <div className='space-y-2 text-sm'>
-                          {/* 集数信息 */}
-                          {((detail?.source === 'shortdrama' &&
-                            detail?.episodes &&
-                            detail.episodes.length > 0) ||
-                            (shortdramaDetails?.episodes &&
-                              shortdramaDetails.episodes.length > 0)) && (
-                            <div className='flex flex-wrap gap-2'>
-                              <span className='relative group bg-linear-to-r from-blue-500/90 to-indigo-500/90 dark:from-blue-600/90 dark:to-indigo-600/90 text-white px-3 py-1 rounded-full text-xs font-medium shadow-md hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105'>
-                                <span className='absolute inset-0 bg-linear-to-r from-blue-400 to-indigo-400 rounded-full opacity-0 group-hover:opacity-20 blur transition-opacity duration-300'></span>
-                                <span className='relative'>
-                                  共
-                                  {
-                                    (
-                                      shortdramaDetails?.episodes ||
-                                      detail?.episodes
-                                    )?.length
-                                  }
-                                  集
-                                </span>
+                        {/* 标签信息 */}
+                        <div className='flex flex-wrap gap-2 mt-3'>
+                          {/* 评分 */}
+                          {shortdramaDetails?.vote_average &&
+                            shortdramaDetails.vote_average > 0 && (
+                              <span className='bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full text-xs'>
+                                ⭐ {shortdramaDetails.vote_average.toFixed(1)}
                               </span>
-                              <span className='relative group bg-linear-to-r from-green-500/90 to-emerald-500/90 dark:from-green-600/90 dark:to-emerald-600/90 text-white px-3 py-1 rounded-full text-xs font-medium shadow-md hover:shadow-lg hover:shadow-green-500/30 transition-all duration-300 hover:scale-105'>
-                                <span className='absolute inset-0 bg-linear-to-r from-green-400 to-emerald-400 rounded-full opacity-0 group-hover:opacity-20 blur transition-opacity duration-300'></span>
-                                <span className='relative'>短剧</span>
-                              </span>
-                              <span className='relative group bg-linear-to-r from-purple-500/90 to-pink-500/90 dark:from-purple-600/90 dark:to-pink-600/90 text-white px-3 py-1 rounded-full text-xs font-medium shadow-md hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-300 hover:scale-105'>
-                                <span className='absolute inset-0 bg-linear-to-r from-purple-400 to-pink-400 rounded-full opacity-0 group-hover:opacity-20 blur transition-opacity duration-300'></span>
-                                <span className='relative'>
-                                  {shortdramaDetails?.year || detail?.year}年
-                                </span>
-                              </span>
-                            </div>
+                            )}
+                          {/* 演员 */}
+                          {shortdramaDetails?.author && (
+                            <span className='bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs'>
+                              演员: {shortdramaDetails.author}
+                            </span>
                           )}
+                          {/* 导演 */}
+                          {shortdramaDetails?.director && (
+                            <span className='bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-full text-xs'>
+                              导演: {shortdramaDetails.director}
+                            </span>
+                          )}
+                          {/* 编剧 */}
+                          {shortdramaDetails?.writer && (
+                            <span className='bg-pink-200 dark:bg-pink-800 text-pink-800 dark:text-pink-200 px-2 py-1 rounded-full text-xs'>
+                              编剧: {shortdramaDetails.writer}
+                            </span>
+                          )}
+                          {/* 地区 */}
+                          {shortdramaDetails?.area && (
+                            <span className='bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs'>
+                              地区: {shortdramaDetails.area}
+                            </span>
+                          )}
+                          {/* 标签 */}
+                          {shortdramaDetails?.tags &&
+                            shortdramaDetails.tags.length > 0 &&
+                            shortdramaDetails.tags
+                              .slice(0, 4)
+                              .map((tag: string, index: number) => (
+                                <span
+                                  key={index}
+                                  className='bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200 px-2 py-1 rounded-full text-xs'
+                                >
+                                  {tag}
+                                </span>
+                              ))}
                         </div>
                       </div>
                     )}
 
                     {/* 剧情简介 */}
+                    {
+                      // 在条件判断前先输出调试日志
+                      (() => {
+                        logger.log('📝 简介渲染检查:');
+                        logger.log(
+                          '  shortdramaDetails?.desc:',
+                          shortdramaDetails?.desc,
+                        );
+                        logger.log('  detail?.desc:', detail?.desc);
+                        logger.log(
+                          '  bangumiDetails?.summary:',
+                          bangumiDetails?.summary,
+                        );
+                        logger.log(
+                          '  movieDetails?.plot_summary:',
+                          movieDetails?.plot_summary,
+                        );
+                        logger.log(
+                          '  shortdramaDetails 完整对象:',
+                          shortdramaDetails,
+                        );
+                        const hasDesc = !!(
+                          shortdramaDetails?.desc ||
+                          detail?.desc ||
+                          bangumiDetails?.summary ||
+                          movieDetails?.plot_summary
+                        );
+                        logger.log('  是否有简介数据:', hasDesc);
+                        return null;
+                      })()
+                    }
                     {(shortdramaDetails?.desc ||
                       detail?.desc ||
                       bangumiDetails?.summary ||
@@ -4635,25 +4691,6 @@ function PlayPageClient() {
                           shortdramaDetails?.desc ||
                           bangumiDetails?.summary ||
                           detail?.desc}
-                      </div>
-                    )}
-                    {/* 短剧元数据（备用API提供） */}
-                    {shortdramaDetails?.metadata && (
-                      <div className='mt-4 space-y-3 border-t border-gray-200 dark:border-gray-700 pt-4'>
-                        {/* 评分 */}
-                        {shortdramaDetails.metadata.vote_average > 0 && (
-                          <div className='flex items-center gap-2'>
-                            <span className='text-yellow-500'>⭐</span>
-                            <span className='font-semibold text-gray-800 dark:text-gray-200'>
-                              {shortdramaDetails.metadata.vote_average.toFixed(
-                                1,
-                              )}
-                            </span>
-                            <span className='text-sm text-gray-500 dark:text-gray-400'>
-                              / 10
-                            </span>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
