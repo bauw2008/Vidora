@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const subCategoryName = searchParams.get('tag');
     const page = searchParams.get('page');
     const size = searchParams.get('size');
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
     const pageNum = page ? parseInt(page) : 1;
     const pageSize = size ? parseInt(size) : 20;
@@ -27,10 +28,12 @@ export async function GET(request: NextRequest) {
     // 生成缓存key
     const cacheKey = `shortdrama-list:${pageNum}:${pageSize}:${subCategoryName || 'all'}`;
 
-    // 尝试从缓存获取
-    const cached = await db.getCache(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached);
+    // 只有非强制刷新时才从缓存获取
+    if (!forceRefresh) {
+      const cached = await db.getCache(cacheKey);
+      if (cached) {
+        return NextResponse.json(cached);
+      }
     }
 
     const result = await getShortDramaList(
@@ -57,6 +60,7 @@ export async function GET(request: NextRequest) {
     const formattedResult = {
       list: formattedList,
       hasMore: result.hasMore,
+      totalPages: result.totalPages,
     };
 
     // 只在成功时保存到缓存

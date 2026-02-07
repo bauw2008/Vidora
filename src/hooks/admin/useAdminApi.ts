@@ -80,9 +80,9 @@ export const useAdminApi = () => {
       ),
 
     updateShortDramaConfig: (config: {
-      primaryApiUrl: string;
-      alternativeApiUrl: string;
-      enableAlternative: boolean;
+      apiUrl: string;
+      apiKey: string;
+      authEnabled: boolean;
       [key: string]: string | boolean | number;
     }) =>
       callApi(

@@ -342,19 +342,43 @@ export class UpstashRedisStorage implements IStorage {
 
   async getAdminConfig(): Promise<AdminConfig | null> {
     const val = await withRetry(() => this.client.get(this.adminConfigKey()));
+
+    // 添加日志：验证返回值
+    logger.log('[Upstash-getAdminConfig] 原始返回值类型:', typeof val);
+    logger.log('[Upstash-getAdminConfig] 原始返回值是否存在:', !!val);
+    logger.log(
+      '[Upstash-getAdminConfig] 原始返回值内容:',
+      JSON.stringify(val, null, 2),
+    );
+
     if (!val) return null;
 
     // 智能兼容：自动识别 JSON 字符串或对象
     if (typeof val === 'string') {
+      logger.log('[Upstash-getAdminConfig] 检测到字符串格式，尝试JSON解析');
       try {
-        return JSON.parse(val);
+        const parsed = JSON.parse(val);
+        logger.log(
+          '[Upstash-getAdminConfig] JSON解析成功，ShortDramaConfig:',
+          parsed?.ShortDramaConfig,
+        );
+        return parsed;
       } catch (e) {
-        logger.error('解析 AdminConfig JSON 失败:', e);
+        logger.error('[Upstash-getAdminConfig] 解析 AdminConfig JSON 失败:', e);
         return null;
       }
     }
 
     // 对象格式，直接返回
+    logger.log('[Upstash-getAdminConfig] 检测到对象格式，直接返回');
+    logger.log(
+      '[Upstash-getAdminConfig] 对象的ShortDramaConfig:',
+      (val as AdminConfig)?.ShortDramaConfig,
+    );
+    logger.log(
+      '[Upstash-getAdminConfig] 对象的所有键:',
+      Object.keys(val as object),
+    );
     return val as AdminConfig;
   }
 

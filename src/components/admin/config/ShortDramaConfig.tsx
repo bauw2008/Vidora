@@ -102,10 +102,9 @@ function ShortDramaConfigContent() {
 
     try {
       await configApi.updateShortDramaConfig({
-        primaryApiUrl: shortDramaSettings.apiUrl,
-        alternativeApiUrl: '',
-        enableAlternative: false,
-        ...shortDramaSettings,
+        apiUrl: shortDramaSettings.apiUrl,
+        apiKey: shortDramaSettings.apiKey,
+        authEnabled: shortDramaSettings.authEnabled,
       });
       showSuccess('短剧配置已保存');
       await loadConfig(); // 重新加载配置

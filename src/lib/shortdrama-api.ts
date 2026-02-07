@@ -94,6 +94,10 @@ export async function callShortDramaAPI<T = unknown>(
   const shortDramaConfig = config.ShortDramaConfig;
 
   if (!shortDramaConfig?.apiUrl) {
+    logger.error(
+      '[callShortDramaAPI] 短剧API未配置，ShortDramaConfig:',
+      shortDramaConfig,
+    );
     return {
       success: false,
       error: '短剧API未配置',
@@ -256,7 +260,12 @@ export async function getShortDramaList(
   page = 1,
   pageSize = 20,
   tag?: string,
-): Promise<{ list: ShortDramaItem[]; hasMore: boolean; total?: number }> {
+): Promise<{
+  list: ShortDramaItem[];
+  hasMore: boolean;
+  total?: number;
+  totalPages?: number;
+}> {
   const params: Record<string, string | number> = {
     page,
     pageSize,
@@ -276,11 +285,18 @@ export async function getShortDramaList(
 
   const totalPages = result.pagination?.totalPages || 0;
   const total = result.pagination?.total || 0;
+  const listLength = result.data?.length || 0;
+
+  // 如果 totalPages 为 0，根据返回的数据量判断是否有更多数据
+  // 如果返回的数据量等于请求的 pageSize，假设还有更多数据
+  const calculatedHasMore = listLength > 0 && listLength >= pageSize;
 
   return {
     list: result.data,
-    hasMore: page < totalPages,
+    hasMore: totalPages > 0 ? page < totalPages : calculatedHasMore,
     total,
+    totalPages:
+      totalPages > 0 ? totalPages : calculatedHasMore ? page + 1 : page,
   };
 }
 
@@ -291,7 +307,12 @@ export async function searchShortDramas(
   keyword: string,
   page = 1,
   pageSize = 20,
-): Promise<{ list: ShortDramaItem[]; hasMore: boolean; total?: number }> {
+): Promise<{
+  list: ShortDramaItem[];
+  hasMore: boolean;
+  total?: number;
+  totalPages?: number;
+}> {
   const result = await callShortDramaAPI<ShortDramaItem[]>('/search', {
     params: { keyword, page, pageSize },
   });
@@ -303,11 +324,18 @@ export async function searchShortDramas(
 
   const totalPages = result.pagination?.totalPages || 0;
   const total = result.pagination?.total || 0;
+  const listLength = result.data?.length || 0;
+
+  // 如果 totalPages 为 0，根据返回的数据量判断是否有更多数据
+  // 如果返回的数据量等于请求的 pageSize，假设还有更多数据
+  const calculatedHasMore = listLength > 0 && listLength >= pageSize;
 
   return {
     list: result.data,
-    hasMore: page < totalPages,
+    hasMore: totalPages > 0 ? page < totalPages : calculatedHasMore,
     total,
+    totalPages:
+      totalPages > 0 ? totalPages : calculatedHasMore ? page + 1 : page,
   };
 }
 

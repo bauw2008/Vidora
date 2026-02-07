@@ -700,14 +700,19 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       apiKey: process.env.SHORTDRAMA_API_KEY || '',
       authEnabled: process.env.SHORTDRAMA_AUTH_ENABLED === 'true',
     };
+  } else {
+    // 确保配置属性完整
+    if (
+      !adminConfig.ShortDramaConfig.apiUrl &&
+      !adminConfig.ShortDramaConfig.apiKey
+    ) {
+      adminConfig.ShortDramaConfig = {
+        apiUrl: process.env.SHORTDRAMA_API_URL || '',
+        apiKey: process.env.SHORTDRAMA_API_KEY || '',
+        authEnabled: process.env.SHORTDRAMA_AUTH_ENABLED === 'true',
+      };
+    }
   }
-
-  // 短剧API配置日志
-  logger.log('短剧API配置:', {
-    apiUrl: adminConfig.ShortDramaConfig.apiUrl,
-    authEnabled: adminConfig.ShortDramaConfig.authEnabled,
-    hasApiKey: !!adminConfig.ShortDramaConfig.apiKey,
-  });
 
   return adminConfig;
 }

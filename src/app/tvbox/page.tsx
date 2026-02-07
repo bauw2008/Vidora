@@ -894,8 +894,18 @@ function TVBoxPageContent() {
         {/* 内容展示 */}
         <div className='max-w-[95%] mx-auto mt-8 overflow-visible will-change-scroll'>
           <VideoList videos={videos} loading={loading} />
+          {/* 加载更多指示器 */}
           {hasMore && (
-            <div ref={loadingRef} className='flex justify-center py-4'>
+            <div
+              ref={(el) => {
+                if (el && el.offsetParent !== null) {
+                  (
+                    loadingRef as React.MutableRefObject<HTMLDivElement | null>
+                  ).current = el;
+                }
+              }}
+              className='flex justify-center py-4'
+            >
               {isLoadingMore ? (
                 <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600'></div>
               ) : (

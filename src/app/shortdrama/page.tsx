@@ -77,16 +77,24 @@ function ShortDramaPagePermissionCheck({
 
 function ShortDramaPageClient() {
   const [doubanData, setDoubanData] = useState<DoubanItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // 初始状态为 true，显示骨架屏
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [selectorsReady, setSelectorsReady] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 分类数据状态
+  const [categoriesData, setCategoriesData] = useState<
+    Array<{
+      id: number;
+      name: string;
+      sub_categories?: Array<{ id: number; name: string }>;
+    }>
+  >([]);
 
   // 短剧选择器状态 - 使用字符串类型存储二级分类名称
   const [shortDramaCategory, setShortDramaCategory] = useState<number>(0);
@@ -113,11 +121,12 @@ function ShortDramaPageClient() {
     };
   }, [shortDramaCategory, shortDramaType, currentPage]);
 
-  // 初始化时设置默认分类和类型
+  // 初始化时加载分类数据
   useEffect(() => {
-    const initDefaults = async () => {
+    const loadCategories = async () => {
       try {
         const categories = await getShortDramaCategories();
+        setCategoriesData(categories);
 
         // API 已经返回了完整的分类数据（包含 sub_categories）
         if (categories.length > 0) {
@@ -133,13 +142,10 @@ function ShortDramaPageClient() {
         }
       } catch (err) {
         logger.error('加载分类失败:', err);
-      } finally {
-        // 无论成功失败都设置选择器已就绪
-        setSelectorsReady(true);
       }
     };
 
-    initDefaults();
+    loadCategories();
   }, []); // 只在组件挂载时执行一次
 
   // 生成骨架屏数据
@@ -152,6 +158,11 @@ function ShortDramaPageClient() {
       return;
     }
 
+    // 等待分类数据加载完成
+    if (!shortDramaCategory || !shortDramaType) {
+      return;
+    }
+
     const requestSnapshot = {
       shortDramaCategory,
       shortDramaType,
@@ -159,20 +170,20 @@ function ShortDramaPageClient() {
     };
 
     try {
+      // 设置加载状态（显示骨架屏）
       setLoading(true);
-      setCurrentPage(0);
+      setCurrentPage(1);
       setDoubanData([]);
       setHasMore(true);
       setIsLoadingMore(false);
 
-      let data: DoubanResult;
-
       // 使用二级分类名称作为 tag 参数
       const tag = shortDramaType || undefined;
 
-      const result = await getShortDramaList(1, 25, tag);
+      // 第一页也使用缓存，减少请求
+      const result = await getShortDramaList(1, 25, tag, false);
 
-      data = {
+      const data: DoubanResult = {
         code: 200,
         message: 'success',
         list:
@@ -202,11 +213,11 @@ function ShortDramaPageClient() {
 
         if (keyParamsMatch) {
           setDoubanData(data.list);
-          setHasMore(result.hasMore);
+          setHasMore(data.list.length !== 0); // 采用豆瓣的逻辑：只要返回数据不为空，就认为还有更多
           setLoading(false);
         }
       } else {
-        throw new Error(data.message || '获取数据失败');
+        throw new Error('获取数据失败');
       }
     } catch (err) {
       logger.error('加载数据失败:', err);
@@ -215,12 +226,8 @@ function ShortDramaPageClient() {
     }
   }, [showSearch, shortDramaCategory, shortDramaType]);
 
-  // 只在选择器准备好后才加载数据
+  // 加载初始数据
   useEffect(() => {
-    if (!selectorsReady) {
-      return;
-    }
-
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
     }
@@ -234,7 +241,7 @@ function ShortDramaPageClient() {
         clearTimeout(debounceTimeoutRef.current);
       }
     };
-  }, [selectorsReady, loadInitialData]);
+  }, [loadInitialData]);
 
   // 加载更多数据
   useEffect(() => {
@@ -294,7 +301,7 @@ function ShortDramaPageClient() {
             // 使用 transition 优化状态更新
             startTransition(() => {
               setDoubanData((prev) => [...prev, ...data.list]);
-              setHasMore(result.hasMore);
+              setHasMore(data.list.length !== 0); // 采用豆瓣的逻辑
             });
           }
         }
@@ -308,16 +315,11 @@ function ShortDramaPageClient() {
     fetchMoreData();
   }, [currentPage, shortDramaCategory, shortDramaType, showSearch]);
 
-  // 设置滚动监听
+  // 滚动加载更多
   useEffect(() => {
-    if (showSearch) {
-      return;
-    }
-
     if (!hasMore || isLoadingMore || loading) {
       return;
     }
-
     if (!loadingRef.current) {
       return;
     }
@@ -341,7 +343,7 @@ function ShortDramaPageClient() {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, isLoadingMore, loading, showSearch]);
+  }, [hasMore, isLoadingMore, loading]);
 
   // 处理选择器变化
   const handleCategoryChange = useCallback(
@@ -349,7 +351,7 @@ function ShortDramaPageClient() {
       const numValue = Number(value);
       if (numValue !== shortDramaCategory) {
         setLoading(true);
-        setCurrentPage(0);
+        setCurrentPage(1);
         setDoubanData([]);
         setHasMore(true);
         setIsLoadingMore(false);
@@ -365,7 +367,7 @@ function ShortDramaPageClient() {
       const stringValue = String(value);
       if (stringValue !== shortDramaType) {
         setLoading(true);
-        setCurrentPage(0);
+        setCurrentPage(1);
         setDoubanData([]);
         setHasMore(true);
         setIsLoadingMore(false);
@@ -388,7 +390,7 @@ function ShortDramaPageClient() {
     try {
       setIsSearching(true);
       setLoading(true);
-      setCurrentPage(0);
+      setCurrentPage(1);
       setDoubanData([]);
       setHasMore(true);
       setIsLoadingMore(false);
@@ -417,7 +419,7 @@ function ShortDramaPageClient() {
       };
 
       setDoubanData(data.list);
-      setHasMore(result.hasMore);
+      setHasMore(data.list.length !== 0);
       setLoading(false);
     } catch (err) {
       logger.error('搜索失败:', err);
@@ -503,22 +505,25 @@ function ShortDramaPageClient() {
           )}
 
           {/* 选择器组件 */}
-          {!showSearch && (
-            <div className='relative bg-gradient-to-br from-white/80 via-blue-50/30 to-purple-50/30 dark:from-gray-800/60 dark:via-blue-900/20 dark:to-purple-900/20 rounded-2xl p-4 sm:p-6 border border-blue-200/40 dark:border-blue-700/40 backdrop-blur-md shadow-lg hover:shadow-xl transition-all duration-300'>
-              {/* 装饰性光晕 */}
-              <div className='absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-br from-blue-300/20 to-purple-300/20 rounded-full blur-3xl pointer-events-none'></div>
-              <div className='absolute -bottom-20 -left-20 w-40 h-40 bg-gradient-to-br from-purple-300/20 to-blue-300/20 rounded-full blur-3xl pointer-events-none'></div>
+          {!showSearch &&
+            categoriesData.length > 0 &&
+            shortDramaCategory > 0 && (
+              <div className='relative bg-gradient-to-br from-white/80 via-blue-50/30 to-purple-50/30 dark:from-gray-800/60 dark:via-blue-900/20 dark:to-purple-900/20 rounded-2xl p-4 sm:p-6 border border-blue-200/40 dark:border-blue-700/40 backdrop-blur-md shadow-lg hover:shadow-xl transition-all duration-300'>
+                {/* 装饰性光晕 */}
+                <div className='absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-br from-blue-300/20 to-purple-300/20 rounded-full blur-3xl pointer-events-none'></div>
+                <div className='absolute -bottom-20 -left-20 w-40 h-40 bg-gradient-to-br from-purple-300/20 to-blue-300/20 rounded-full blur-3xl pointer-events-none'></div>
 
-              <div className='relative'>
-                <ShortDramaSelector
-                  primarySelection={shortDramaCategory}
-                  secondarySelection={shortDramaType}
-                  onPrimaryChange={handleCategoryChange}
-                  onSecondaryChange={handleTypeChange}
-                />
+                <div className='relative'>
+                  <ShortDramaSelector
+                    primarySelection={shortDramaCategory}
+                    secondarySelection={shortDramaType}
+                    onPrimaryChange={handleCategoryChange}
+                    onSecondaryChange={handleTypeChange}
+                    categoriesData={categoriesData}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
 
         {/* 内容展示区域 */}
@@ -557,8 +562,21 @@ function ShortDramaPageClient() {
 
           {/* 加载更多指示器 */}
           {!loading && hasMore && (
-            <div ref={loadingRef} className='flex justify-center py-8'>
-              <div className='text-gray-500 dark:text-gray-400'>加载中...</div>
+            <div
+              ref={(el) => {
+                if (el && el.offsetParent !== null) {
+                  (
+                    loadingRef as React.MutableRefObject<HTMLDivElement | null>
+                  ).current = el;
+                }
+              }}
+              className='flex justify-center py-8'
+            >
+              {isLoadingMore ? (
+                <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600'></div>
+              ) : (
+                <div className='h-6'></div>
+              )}
             </div>
           )}
 

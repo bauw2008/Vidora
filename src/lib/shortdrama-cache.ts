@@ -150,6 +150,11 @@ export async function clearCategoriesCache(): Promise<void> {
   await clearCache('shortdrama-categories-');
 }
 
+// 清除列表缓存
+export async function clearListCache(): Promise<void> {
+  await clearCache('shortdrama-lists-');
+}
+
 // 在模块加载时初始化缓存系统
 if (typeof window !== 'undefined') {
   initShortdramaCache().catch(logger.error);

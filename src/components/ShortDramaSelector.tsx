@@ -1,9 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-
-import { logger } from '@/lib/logger';
-import { getShortDramaCategories } from '@/lib/shortdrama.client';
+import React, { useEffect, useMemo, useRef } from 'react';
 
 import { CapsuleSelector } from './CapsuleSelector';
 
@@ -18,6 +15,11 @@ interface ShortDramaSelectorProps {
   secondarySelection?: string;
   onPrimaryChange: (value: string | number) => void;
   onSecondaryChange: (value: string | number) => void;
+  categoriesData?: Array<{
+    id: number;
+    name: string;
+    sub_categories?: Array<{ id: number; name: string }>;
+  }>;
 }
 
 const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
@@ -25,32 +27,10 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
   secondarySelection,
   onPrimaryChange,
   onSecondaryChange,
+  categoriesData = [],
 }) => {
-  const [categoriesData, setCategoriesData] = useState<
-    Array<{
-      id: number;
-      name: string;
-      sub_categories?: Array<{ id: number; name: string }>;
-    }>
-  >([]);
-
   // 记录上一次的一级分类，用于检测变化
   const lastPrimaryCategoryRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const categories = await getShortDramaCategories();
-
-        // API 已经返回了完整的分类数据（包含 sub_categories）
-        setCategoriesData(categories);
-      } catch (error) {
-        logger.error('加载短剧分类失败:', error);
-      }
-    };
-
-    loadCategories();
-  }, []);
 
   // 根据一级分类值获取对应的二级分类
   const subCategoriesForPrimary = useMemo(() => {
@@ -107,7 +87,7 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
 
   // 初始化时选择第一个分类和第一个类型
   useEffect(() => {
-    if (categoriesData.length > 0 && !primarySelection) {
+    if (categoriesData.length > 0 && primarySelection === undefined) {
       const firstCategory = categoriesData[0];
       onPrimaryChange(firstCategory.id);
 
@@ -141,7 +121,11 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
         <CapsuleSelector
           label='分类'
           options={primaryOptions}
-          value={primarySelection || primaryOptions[0]?.value}
+          value={
+            primarySelection !== undefined
+              ? primarySelection
+              : primaryOptions[0]?.value
+          }
           onChange={onPrimaryChange}
           enableVirtualScroll={true}
         />
@@ -152,7 +136,11 @@ const ShortDramaSelector: React.FC<ShortDramaSelectorProps> = ({
         <CapsuleSelector
           label='类型'
           options={secondaryOptions}
-          value={secondarySelection || secondaryOptions[0]?.value}
+          value={
+            secondarySelection !== undefined && secondarySelection !== ''
+              ? secondarySelection
+              : secondaryOptions[0]?.value
+          }
           onChange={onSecondaryChange}
           enableVirtualScroll={true}
         />
