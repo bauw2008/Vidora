@@ -448,7 +448,7 @@ function VideoCard({
         showCheckCircle: false,
         showDoubanLink: false,
         showRating: true,
-        showYear: true,
+        showYear: false,
       },
       shortdrama: {
         showSourceName: false,
