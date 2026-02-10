@@ -25,7 +25,7 @@ function LoginPageClient() {
 
   // 只在客户端生成 URL，避免水合错误
   useEffect(() => {
-    const url = `https://edgeone-picture.edgeone.app/api/random?t=${Date.now()}`;
+    const url = `https://picture.bauw.dpdns.org/api/random?t=${Date.now()}`;
     const img = new Image();
 
     img.onload = () => {
