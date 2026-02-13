@@ -81,6 +81,26 @@ export async function GET(request: NextRequest) {
     // 计算近7天的日期范围
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+    // 并行获取所有用户的头像和登录IP（优化性能）
+    const userExtraInfoPromises = allUsers.map(async (user) => {
+      const [avatar, loginIp] = await Promise.all([
+        typeof storage.getUserAvatar === 'function'
+          ? storage.getUserAvatar(user.username).catch(() => null)
+          : Promise.resolve(null),
+        typeof storage.getUserLoginIp === 'function'
+          ? storage.getUserLoginIp(user.username).catch(() => '暂无IP记录')
+          : Promise.resolve('暂无IP记录'),
+      ]);
+      return { username: user.username, avatar, loginIp };
+    });
+
+    const userExtraInfoMap = new Map(
+      (await Promise.all(userExtraInfoPromises)).map((info) => [
+        info.username,
+        info,
+      ]),
+    );
+
     // 为每个用户获取播放记录统计
     for (const user of allUsers) {
       try {
@@ -141,28 +161,10 @@ export async function GET(request: NextRequest) {
         const userPlayRecords = await storage.getAllPlayRecords(user.username);
         const records = Object.values(userPlayRecords);
 
-        // 获取用户额外信息（仅管理员可见）
-        let userAvatar = null;
-
-        try {
-          // 获取用户头像
-          if (typeof storage.getUserAvatar === 'function') {
-            userAvatar = await storage.getUserAvatar(user.username);
-          }
-        } catch (error) {
-          logger.error(`获取用户 ${user.username} 头像失败:`, error);
-        }
-
-        // 获取用户登录IP
-        let userLoginIp = '暂无IP记录';
-        try {
-          if (typeof storage.getUserLoginIp === 'function') {
-            const loginIp = await storage.getUserLoginIp(user.username);
-            userLoginIp = loginIp || '暂无IP记录';
-          }
-        } catch (error) {
-          logger.error(`获取用户 ${user.username} 登录IP失败:`, error);
-        }
+        // 从预获取的 Map 中读取头像和IP（优化性能）
+        const extraInfo = userExtraInfoMap.get(user.username);
+        const userAvatar = extraInfo?.avatar || null;
+        const userLoginIp = extraInfo?.loginIp || '暂无IP记录';
 
         if (records.length === 0) {
           // 没有播放记录的用户也要显示

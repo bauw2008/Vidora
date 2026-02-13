@@ -7,11 +7,9 @@ import {
   ShieldCheck,
   ShieldX,
   UserPlus,
-  Users,
   Video,
   X,
 } from 'lucide-react';
-import Image from 'next/image';
 import { useEffect, useState } from 'react';
 
 import { notifyConfigUpdated } from '@/lib/global-config';
@@ -29,76 +27,6 @@ import {
 type User = AdminConfig['UserConfig']['Users'][number];
 type Tag = AdminConfig['UserConfig']['Tags'][number];
 type UserSettings = AdminConfig['UserConfig'];
-
-// 用户头像组件
-interface UserAvatarProps {
-  username: string;
-  size?: 'sm' | 'md' | 'lg';
-}
-
-const UserAvatar = ({ username, size = 'sm' }: UserAvatarProps) => {
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAvatar = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(
-          `/api/avatar?user=${encodeURIComponent(username)}`,
-        );
-        const data = await response.json();
-        setAvatarUrl(data.avatar || null);
-      } catch (error) {
-        logger.error('获取头像失败:', error);
-      }
-      setLoading(false);
-    };
-
-    fetchAvatar();
-  }, [username]);
-
-  const sizeClasses = {
-    sm: 'w-8 h-8',
-    md: 'w-10 h-10',
-    lg: 'w-12 h-12',
-  };
-
-  const iconSizeClasses = {
-    sm: 'w-4 h-4',
-    md: 'w-5 h-5',
-    lg: 'w-6 h-6',
-  };
-
-  return (
-    <div
-      className={`${sizeClasses[size]} rounded-full overflow-hidden relative flex-shrink-0`}
-    >
-      {loading ? (
-        <div className='w-full h-full bg-gray-100 dark:bg-gray-800 animate-pulse' />
-      ) : avatarUrl ? (
-        <Image
-          src={
-            avatarUrl.startsWith('data:')
-              ? avatarUrl
-              : `data:image/jpeg;base64,${avatarUrl}`
-          }
-          alt={`${username} 的头像`}
-          width={size === 'sm' ? 32 : size === 'md' ? 40 : 48}
-          height={size === 'sm' ? 32 : size === 'md' ? 40 : 48}
-          className='w-full h-full object-cover'
-          unoptimized
-        />
-      ) : (
-        <div className='w-full h-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center'>
-          <Users
-            className={`${iconSizeClasses[size]} text-blue-500 dark:text-blue-400`}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
 
 function UserConfigContent() {
   // 使用新的hooks
@@ -203,64 +131,50 @@ function UserConfigContent() {
   // 加载配置
   const loadConfig = async () => {
     try {
-      logger.log('=== loadConfig 开始 ===');
-      const response = await fetch('/api/admin/config');
-      const data = await response.json();
+      // 并行获取配置和用户统计信息
+      const [configRes, statsRes] = await Promise.all([
+        fetch('/api/admin/config'),
+        fetch('/api/admin/play-stats').catch(() => null), // 失败时不阻塞主流程
+      ]);
 
-      logger.log('获取到的完整配置:', data);
-      logger.log('UserConfig是否存在:', !!data?.Config?.UserConfig);
+      if (!configRes.ok) {
+        throw new Error('获取配置失败');
+      }
+
+      const data = await configRes.json();
+
+      // 解析用户统计（如果获取成功）
+      let userStats: Array<{ username: string; lastLoginTime?: number }> = [];
+      if (statsRes?.ok) {
+        const statsData = await statsRes.json();
+        userStats = statsData.userStats || [];
+      }
 
       if (data?.Config?.UserConfig) {
-        logger.log('原始UserConfig:', data.Config.UserConfig);
-        logger.log('原始Users数量:', data.Config.UserConfig.Users?.length || 0);
-        logger.log(
-          '原始Tags数量:',
-          Array.isArray(data.Config.UserConfig.Tags)
-            ? data.Config.UserConfig.Tags.length
-            : 0,
-        );
-
-        // 注释掉直接从数据库获取用户列表的代码，使用配置中的用户数据
-        // let dbUsers = [];
-        // try {
-        //   const response = await fetch('/api/admin/user', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //       action: 'getUsers',
-        //     }),
-        //   });
-
-        //   if (response.ok) {
-        //     const userData = await response.json();
-        //     dbUsers = userData.users || [];
-        //     logger.log('从数据库同步的最新用户列表:', dbUsers);
-        //     logger.log('数据库用户数量:', dbUsers.length);
-        //   } else {
-        //     logger.error('获取用户列表失败:', response.status);
-        //   }
-        // } catch (error) {
-        //   logger.error('从数据库同步用户失败:', error);
-        // }
-
         // 使用配置中的用户组数据
         let tagsToUse = Array.isArray(data.Config.UserConfig.Tags)
           ? data.Config.UserConfig.Tags
           : [];
 
-        logger.log('处理后的用户组列表:', tagsToUse);
-
-        // 获取用户统计信息（包含登录时间）
-        let userStats: Array<{ username: string; lastLoginTime?: number }> = [];
-        try {
-          const statsResponse = await fetch('/api/admin/play-stats');
-          if (statsResponse.ok) {
-            const statsData = await statsResponse.json();
-            userStats = statsData.userStats || [];
-            logger.log('获取到用户统计数量:', userStats.length);
-          }
-        } catch (error) {
-          logger.error('获取用户统计失败:', error);
+        // 同时加载视频源配置（从已获取的 config 数据中提取）
+        if (
+          data.Config?.SourceConfig &&
+          Array.isArray(data.Config.SourceConfig)
+        ) {
+          const sources = data.Config.SourceConfig.map(
+            (source: {
+              key: string;
+              name?: string;
+              api?: string;
+              disabled?: boolean;
+            }) => ({
+              key: source.key,
+              name: source.name || source.key,
+              api: source.api,
+              disabled: source.disabled || false,
+            }),
+          );
+          setVideoSources(sources);
         }
 
         // 创建配置对象
@@ -305,99 +219,32 @@ function UserConfigContent() {
               }
             }
 
-            // 确保用户有tags字段
-            let userTags = finalUser.tags || [];
+            // 简化的权限继承逻辑
+            const userTags = finalUser.tags || [];
+            const tag =
+              userTags.length > 0
+                ? tagsToUse.find((t) => t.name === userTags[0])
+                : null;
 
-            // 权限继承逻辑：视频源权限和特殊功能权限分开处理
-            let userVideoSources: string[] = [];
-            let userFeatures: {
-              aiEnabled?: boolean;
-              disableYellowFilter?: boolean;
-              netDiskSearchEnabled?: boolean;
-              tmdbActorSearchEnabled?: boolean;
-            } = {};
-            let isInherited = false; // 是否继承自用户组
+            // 判断是否继承用户组权限
+            const hasIndependentSources =
+              finalUser.videoSources?.length > 0 &&
+              JSON.stringify(finalUser.videoSources) !==
+                JSON.stringify(tag?.videoSources);
 
-            // 1. 如果用户有用户组，先检查是否继承
-            if (userTags.length > 0) {
-              // 只继承第一个用户组的权限
-              const tag = tagsToUse.find((t) => t.name === userTags[0]);
-              if (tag) {
-                // 检查用户的videoSources是否与用户组的videoSources完全一致
-                const isSameArray = (
-                  arr1: string[] | undefined,
-                  arr2: string[] | undefined,
-                ) => {
-                  if (!arr1 || !arr2) return false;
-                  if (arr1.length !== arr2.length) return false;
-                  return arr1.every((val, index) => val === arr2[index]);
-                };
+            finalUser.videoSources = hasIndependentSources
+              ? finalUser.videoSources
+              : tag?.videoSources || finalUser.videoSources || [];
+            finalUser.videoSourcesInherited = !hasIndependentSources && !!tag;
 
-                const userVideoSourcesSameAsTag = isSameArray(
-                  finalUser.videoSources,
-                  tag.videoSources,
-                );
-
-                // 如果用户没有videoSources，或者videoSources与用户组完全一致，则继承
-                if (
-                  !finalUser.videoSources ||
-                  finalUser.videoSources.length === 0 ||
-                  userVideoSourcesSameAsTag
-                ) {
-                  userVideoSources = tag.videoSources || [];
-                  isInherited = true;
-                  logger.log(
-                    `用户 ${finalUser.username} 继承用户组 ${tag.name} 的视频源`,
-                    {
-                      videoSources: userVideoSources,
-                    },
-                  );
-                } else {
-                  // 用户有独立的videoSources，且与用户组不一致
-                  userVideoSources = finalUser.videoSources;
-                  isInherited = finalUser.videoSourcesInherited === true; // 只有明确标记为true才是继承
-                  logger.log(`用户 ${finalUser.username} 有独立视频源:`, {
-                    videoSources: userVideoSources,
-                    inherited: isInherited,
-                  });
-                }
-
-                // 继承用户组的功能配置（不管用户是否有独立配置）
-                if (tag.aiEnabled !== undefined)
-                  userFeatures.aiEnabled = tag.aiEnabled;
-                if (tag.disableYellowFilter !== undefined)
-                  userFeatures.disableYellowFilter = tag.disableYellowFilter;
-                if (tag.netDiskSearchEnabled !== undefined)
-                  userFeatures.netDiskSearchEnabled = tag.netDiskSearchEnabled;
-                if (tag.tmdbActorSearchEnabled !== undefined)
-                  userFeatures.tmdbActorSearchEnabled =
-                    tag.tmdbActorSearchEnabled;
-              }
-            } else {
-              // 用户没有用户组，使用自己的videoSources
-              if (finalUser.videoSources && finalUser.videoSources.length > 0) {
-                userVideoSources = finalUser.videoSources;
-                isInherited = finalUser.videoSourcesInherited === true;
-              }
-            }
-
-            // 2. 如果用户有独立的features，覆盖用户组的配置
-            if (finalUser.features) {
-              userFeatures = { ...userFeatures, ...finalUser.features };
-              logger.log(`用户 ${finalUser.username} 有独立功能配置:`, {
-                features: userFeatures,
-              });
-            }
-
-            // 3. 构建最终的videoSources和features
-            finalUser.videoSources = userVideoSources;
-            finalUser.features = userFeatures;
-            finalUser.videoSourcesInherited = isInherited;
-
-            logger.log(`用户 ${finalUser.username} 权限继承结果:`, {
-              videoSources: finalUser.videoSources,
-              features: finalUser.features,
-            });
+            // 合并功能配置（用户独立配置优先）
+            finalUser.features = {
+              aiEnabled: tag?.aiEnabled,
+              disableYellowFilter: tag?.disableYellowFilter,
+              netDiskSearchEnabled: tag?.netDiskSearchEnabled,
+              tmdbActorSearchEnabled: tag?.tmdbActorSearchEnabled,
+              ...finalUser.features,
+            };
 
             // 保留其他权限相关字段
             finalUser.tags = userTags;
@@ -457,7 +304,7 @@ function UserConfigContent() {
     handleAddUserGroup(true);
   };
 
-  // 初始化加载
+  // 初始化加载 - 并行加载所有配置
   useEffect(() => {
     loadConfig();
     loadVideoSources();
@@ -2092,12 +1939,17 @@ function UserConfigContent() {
                       >
                         {/* 用户信息列 */}
                         <td className='py-4 px-4'>
-                          <div className='flex items-start space-x-3'>
-                            <UserAvatar username={user.username} size='md' />
+                          <div className='flex items-start'>
                             <div className='flex-1 min-w-0'>
                               {/* 用户名和角色 */}
                               <div className='flex items-center space-x-2 mb-2'>
-                                <div className='font-medium text-gray-900 dark:text-gray-100 truncate'>
+                                <div
+                                  className={`font-medium truncate ${
+                                    user.role === 'owner'
+                                      ? 'text-red-600 dark:text-red-400 font-bold'
+                                      : 'text-gray-900 dark:text-gray-100'
+                                  }`}
+                                >
                                   {user.username}
                                 </div>
                                 <span

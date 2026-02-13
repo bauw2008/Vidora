@@ -144,15 +144,6 @@ const gradientOptions: GradientOption[] = [
     lightness: 60,
   },
   {
-    name: '紫罗兰梦',
-    light:
-      'linear-gradient(135deg, #4776e6 0%, #8e54e9 25%, #4776e6 50%, #ff6b6b 75%, #feca57 100%)',
-    dark: 'linear-gradient(135deg, #2c1810 0%, #8b4789 25%, #b06ab3 50%, #e6dee9 75%, #8b4789 100%)',
-    hue: 270,
-    saturation: 65,
-    lightness: 55,
-  },
-  {
     name: '清新薄荷',
     light:
       'linear-gradient(135deg, #00b4db 0%, #0083b0 25%, #00b4db 50%, #5eb3fd 75%, #00d2ff 100%)',
@@ -178,15 +169,6 @@ const gradientOptions: GradientOption[] = [
     hue: 250,
     saturation: 60,
     lightness: 15,
-  },
-  {
-    name: '春日樱花',
-    light:
-      'linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 25%, #fbc2eb 50%, #c2e9fb 75%, #a1c4fd 100%)',
-    dark: 'linear-gradient(135deg, #4a0080 0%, #6a0dad 25%, #8a2be2 50%, #9370db 75%, #7b68ee 100%)',
-    hue: 290,
-    saturation: 70,
-    lightness: 75,
   },
   {
     name: '夏日海滩',
@@ -261,23 +243,78 @@ const gradientOptions: GradientOption[] = [
     saturation: 45,
     lightness: 90,
   },
+  // 时尚现代系列
   {
-    name: '海洋之心',
+    name: '北欧极简',
     light:
-      'linear-gradient(135deg, #c8e8f5 0%, #b6daf8 15%, #8ec6f1 30%, #e0f2fb 45%, #b6daf8 60%, #c8e8f5 80%, #8ec6f1 100%)',
-    dark: 'linear-gradient(135deg, #0f3460 0%, #16537e 25%, #0f3460 50%, #16537e 75%, #0f3460 100%)',
-    hue: 190,
+      'linear-gradient(135deg, #fafafa 0%, #f5f5f5 25%, #eeeeee 50%, #e0e0e0 75%, #fafafa 100%)',
+    dark: 'linear-gradient(135deg, #212121 0%, #424242 25%, #616161 50%, #757575 75%, #212121 100%)',
+    hue: 0,
+    saturation: 0,
+    lightness: 96,
+  },
+  {
+    name: '莫兰迪灰',
+    light:
+      'linear-gradient(135deg, #e8e3df 0%, #d4cec7 25%, #c9c0b6 50%, #b8b0a8 75%, #e8e3df 100%)',
+    dark: 'linear-gradient(135deg, #3d3d3d 0%, #4a4a4a 25%, #575757 50%, #636363 75%, #3d3d3d 100%)',
+    hue: 30,
+    saturation: 15,
+    lightness: 85,
+  },
+  {
+    name: '奶油慕斯',
+    light:
+      'linear-gradient(135deg, #fff8e7 0%, #ffecd2 25%, #fcb69f 50%, #ffecd2 75%, #fff8e7 100%)',
+    dark: 'linear-gradient(135deg, #3e2723 0%, #5d4037 25%, #795548 50%, #8d6e63 75%, #3e2723 100%)',
+    hue: 30,
     saturation: 50,
+    lightness: 92,
+  },
+  {
+    name: '午夜巴黎',
+    light:
+      'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 25%, #90caf9 50%, #64b5f6 75%, #e3f2fd 100%)',
+    dark: 'linear-gradient(135deg, #0d1b2a 0%, #1b263b 25%, #415a77 50%, #778da9 75%, #0d1b2a 100%)',
+    hue: 215,
+    saturation: 60,
     lightness: 75,
   },
   {
-    name: '薰衣草田',
+    name: '石墨雅黑',
     light:
-      'linear-gradient(135deg, #f4ecf7 0%, #e8daef 15%, #d7bde2 30%, #f8f9f9 45%, #e8daef 60%, #f4ecf7 80%, #d7bde2 100%)',
-    dark: 'linear-gradient(135deg, #4a4e69 0%, #5c5470 25%, #4a4e69 50%, #5c5470 75%, #4a4e69 100%)',
-    hue: 280,
-    saturation: 25,
-    lightness: 90,
+      'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 25%, #bdbdbd 50%, #9e9e9e 75%, #f5f5f5 100%)',
+    dark: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 25%, #404040 50%, #525252 75%, #1a1a1a 100%)',
+    hue: 0,
+    saturation: 0,
+    lightness: 20,
+  },
+  {
+    name: '珊瑚海岸',
+    light:
+      'linear-gradient(135deg, #ffebee 0%, #ffcdd2 25%, #ef9a9a 50%, #e57373 75%, #ffebee 100%)',
+    dark: 'linear-gradient(135deg, #3e2723 0%, #5d4037 25%, #795548 50%, #8d6e63 75%, #3e2723 100%)',
+    hue: 0,
+    saturation: 60,
+    lightness: 80,
+  },
+  {
+    name: '极光幻境',
+    light:
+      'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 25%, #a5d6a7 50%, #81c784 75%, #e8f5e9 100%)',
+    dark: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 25%, #388e3c 50%, #43a047 75%, #1b5e20 100%)',
+    hue: 122,
+    saturation: 45,
+    lightness: 85,
+  },
+  {
+    name: '香槟玫瑰',
+    light:
+      'linear-gradient(135deg, #fce4ec 0%, #f8bbd9 25%, #f48fb1 50%, #f06292 75%, #fce4ec 100%)',
+    dark: 'linear-gradient(135deg, #4a148c 0%, #6a1b9a 25%, #7b1fa2 50%, #8e24aa 75%, #4a148c 100%)',
+    hue: 340,
+    saturation: 55,
+    lightness: 88,
   },
 ];
 
