@@ -1,12 +1,12 @@
 'use client';
 
 import { AlertCircle, CheckCircle } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { logger } from '@/lib/logger';
 
-import { RandomBackground } from '@/components/RandomBackground';
 import { useSite } from '@/components/SiteProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
@@ -28,9 +28,7 @@ function RegisterPageClient() {
   // 只在客户端生成 URL，避免水合错误
   useEffect(() => {
     const url = `https://picture.bauw.dpdns.org/api/random?t=${Date.now()}`;
-    requestAnimationFrame(() => {
-      setBackgroundImageUrl(url);
-    });
+    setBackgroundImageUrl(url);
   }, []);
 
   const [validationErrors, setValidationErrors] = useState<{
@@ -191,12 +189,20 @@ function RegisterPageClient() {
   if (registrationDisabled) {
     return (
       <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
-        {/* 🔥 随机背景图片 - 独立层 */}
+        {/* 🔥 背景图片 */}
         {backgroundImageUrl && (
-          <RandomBackground imageUrl={backgroundImageUrl} />
+          <Image
+            src={backgroundImageUrl}
+            alt='Background'
+            fill
+            priority
+            className='object-cover'
+            style={{ filter: 'brightness(0.7)' }}
+            unoptimized
+          />
         )}
 
-        {/* 🔥 半透明遮罩 - 独立层 */}
+        {/* 🔥 半透明遮罩 */}
         <div className='absolute inset-0 bg-black/20 dark:bg-black/40 pointer-events-none' />
 
         <div className='absolute top-4 right-4 z-20'>
@@ -236,10 +242,20 @@ function RegisterPageClient() {
 
   return (
     <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
-      {/* 🔥 随机背景图片 - 独立层 */}
-      <RandomBackground imageUrl={backgroundImageUrl} />
+      {/* 🔥 背景图片 */}
+      {backgroundImageUrl && (
+        <Image
+          src={backgroundImageUrl}
+          alt='Background'
+          fill
+          priority
+          className='object-cover'
+          style={{ filter: 'brightness(0.7)' }}
+          unoptimized
+        />
+      )}
 
-      {/* 🔥 半透明遮罩 - 独立层 */}
+      {/* 🔥 半透明遮罩 */}
       <div className='absolute inset-0 bg-black/20 dark:bg-black/40 pointer-events-none' />
 
       <div className='absolute top-4 right-4 z-20'>
