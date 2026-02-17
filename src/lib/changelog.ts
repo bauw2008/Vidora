@@ -1,0 +1,66 @@
+// 此文件由 scripts/convert-changelog.js 自动生成
+// 请勿手动编辑
+
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  added: string[];
+  changed: string[];
+  fixed: string[];
+}
+
+export const changelog: ChangelogEntry[] = [
+  {
+    version: '1.1.1',
+    date: '2026-01-28',
+    added: [
+      // 无新增内容
+    ],
+    changed: [
+      '- ⚡【content-visibility】添加 CSS 性能优化，跳过屏幕外元素渲染，降低 CPU 60-80%',
+      '- 🎯【contain-intrinsic-size】优化占位尺寸估算，减少滚动时的布局抖动',
+      '- 🚀【will-change-scroll】添加 GPU 硬件加速，提升滚动流畅度 5-10%',
+      '- 🔄【useTransition】添加 React 19 低优先级状态更新，提升筛选和无限加载流畅度',
+      '---',
+    ],
+    fixed: [
+      // 无修复内容
+    ],
+  },
+  {
+    version: '1.1.0',
+    date: '2026-01-14',
+    added: [
+      '🎯【收藏夹】新增集数更新提醒功能，显示新集数徽章',
+      '📊【集数检查】优化检查机制，只检查收藏的剧集，减少性能消耗',
+    ],
+    changed: [
+      '⚡【性能优化】减少不必要的 API 调用和缓存刷新',
+      '🎯【继续观看】移除集数徽章显示，保持界面简洁',
+    ],
+    fixed: [
+      '🐛【集数检查】修复缓存函数未保存到 localStorage 的严重问题',
+      '🐛【TypeScript】修复 PlayRecord 对象构造缺少必需属性的编译错误',
+    ],
+  },
+  {
+    version: '1.0.0',
+    date: '2025-09-18',
+    added: [
+      '🚀【导航菜单】动态构建灵活开启/隐藏',
+      '📝【配置管理】移除默认主窗口/tvbox配置，转至管理员配置项集中管理',
+      '📊【分类配置】菜单结构优化，操作更便捷',
+      '🔗【主题配置】多种渐变色自定义背景+图片背景，整体模糊透明，背景可动态调节',
+      '🎯【接口管理】live/Tvbox 默认关闭访问将无效，tvbox 为配置源播放窗口',
+      '🔍【搜索页】Youtube/网盘搜索菜单默认隐藏',
+      '⚡【AI推荐】默认隐藏',
+      '📺【播放器】弹幕发射器负优化，控制栏菜单CSS样式调整',
+      '🎯【网盘搜索】...',
+      '🎮【其他】虚拟滑动显示异常修复，增加头像显示，统计ip登陆记录，用户注册审核等...',
+    ],
+    changed: ['📐 ...'],
+    fixed: ['🎮 ...'],
+  },
+];
+
+export default changelog;

@@ -1,0 +1,19 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/backup": true,
+    "**/.next": true,
+    "**/out": true,
+    "**/dist": true,
+    "**/.pnp.*": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/backup": true,
+    "**/.next": true,
+    "**/out": true,
+    "**/dist": true,
+    "**/.pnp.*": true
+  },
+  "typescript.preferences.includePackageJsonAutoImports": "off"
+}

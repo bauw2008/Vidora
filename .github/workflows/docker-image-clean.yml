@@ -1,0 +1,17 @@
+name: Clean old images
+on:
+  schedule:
+    - cron: '0 2 * * 0' # 每周日凌晨 2 点执行
+  workflow_dispatch: # 手动触发
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write # 必须有写权限才能删除
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'vidora'
+          package-type: 'container'
+          min-versions-to-keep: 10

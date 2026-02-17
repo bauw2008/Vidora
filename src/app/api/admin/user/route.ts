@@ -1,0 +1,654 @@
+/* @typescript-eslint/no-explicit-any,@typescript-eslint/no-non-null-assertion */
+
+import { NextRequest, NextResponse } from 'next/server';
+
+import { getAuthInfoFromCookie } from '@/lib/auth';
+import { clearConfigCache, getConfig } from '@/lib/config';
+import { SimpleCrypto } from '@/lib/crypto';
+import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
+
+type UserRole = 'owner' | 'admin' | 'user';
+
+interface UserEntry {
+  username: string;
+  role: UserRole;
+  banned?: boolean;
+  videoSources?: string[];
+  features?: {
+    aiEnabled?: boolean;
+    disableYellowFilter?: boolean;
+    netDiskSearchEnabled?: boolean;
+    tmdbActorSearchEnabled?: boolean;
+  };
+  tags?: string[];
+  createdAt?: number;
+  permissionVersion?: number;
+  videoSourcesInherited?: boolean;
+}
+
+export const runtime = 'nodejs';
+
+// 支持的操作类型
+const ACTIONS = [
+  'add',
+  'ban',
+  'unban',
+  'setAdmin',
+  'cancelAdmin',
+  'changePassword',
+  'deleteUser',
+  'updateUserApis',
+  'userGroup',
+  'updateUserGroups',
+  'batchUpdateUserGroups',
+  'approveRegister',
+  'rejectRegister',
+  'getPassword',
+] as const;
+
+export async function POST(request: NextRequest) {
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  if (storageType === 'localstorage') {
+    return NextResponse.json(
+      {
+        error: '不支持本地存储进行管理员配置',
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const body = await request.json();
+
+    const authInfo = getAuthInfoFromCookie(request);
+    if (!authInfo || !authInfo.username) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const username = authInfo.username;
+
+    const {
+      targetUsername, // 目标用户名
+      targetPassword, // 目标用户密码（仅在添加用户时需要）
+      action,
+    } = body as {
+      targetUsername?: string;
+      targetPassword?: string;
+      action?: (typeof ACTIONS)[number];
+    };
+
+    if (!action || !ACTIONS.includes(action)) {
+      return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
+    }
+
+    // 用户组操作和批量操作不需要targetUsername
+    if (
+      !targetUsername &&
+      !['userGroup', 'batchUpdateUserGroups'].includes(action)
+    ) {
+      return NextResponse.json({ error: '缺少目标用户名' }, { status: 400 });
+    }
+
+    if (
+      action !== 'changePassword' &&
+      action !== 'deleteUser' &&
+      action !== 'updateUserApis' &&
+      action !== 'userGroup' &&
+      action !== 'updateUserGroups' &&
+      action !== 'batchUpdateUserGroups' &&
+      username === targetUsername
+    ) {
+      return NextResponse.json(
+        { error: '无法对自己进行此操作' },
+        { status: 400 },
+      );
+    }
+
+    // 获取配置与存储
+    const adminConfig = await getConfig();
+
+    // 判定操作者角色
+    let operatorRole: 'owner' | 'admin';
+    const userEntry = adminConfig.UserConfig.Users.find(
+      (u) => u.username === username,
+    );
+
+    if (!userEntry) {
+      // 如果用户不在配置中，检查是否是环境变量中的站长
+      if (username === process.env.USERNAME) {
+        operatorRole = 'owner';
+      } else {
+        return NextResponse.json({ error: '权限不足' }, { status: 401 });
+      }
+    } else if (userEntry.role === 'owner') {
+      operatorRole = 'owner';
+    } else if (userEntry.role === 'admin' && !userEntry.banned) {
+      operatorRole = 'admin';
+    } else {
+      return NextResponse.json({ error: '权限不足' }, { status: 401 });
+    }
+
+    // 查找目标用户条目（用户组操作和批量操作不需要）
+    let targetEntry: UserEntry | undefined = undefined;
+    let isTargetAdmin = false;
+
+    if (
+      !['userGroup', 'batchUpdateUserGroups'].includes(action) &&
+      targetUsername
+    ) {
+      targetEntry = adminConfig.UserConfig.Users.find(
+        (u) => u.username === targetUsername,
+      );
+
+      if (
+        targetEntry &&
+        targetEntry.role === 'owner' &&
+        !['changePassword', 'updateUserApis', 'updateUserGroups'].includes(
+          action,
+        )
+      ) {
+        return NextResponse.json({ error: '无法操作站长' }, { status: 400 });
+      }
+
+      // 权限校验逻辑
+      isTargetAdmin = targetEntry?.role === 'admin';
+    }
+
+    switch (action) {
+      case 'add': {
+        if (targetEntry) {
+          return NextResponse.json({ error: '用户已存在' }, { status: 400 });
+        }
+        if (!targetPassword) {
+          return NextResponse.json(
+            { error: '缺少目标用户密码' },
+            { status: 400 },
+          );
+        }
+        await db.registerUser(targetUsername, targetPassword);
+
+        // 获取用户组信息
+        const { userGroup } = body as { userGroup?: string };
+
+        // 更新配置
+        const newUser = {
+          username: targetUsername,
+          role: 'user' as const,
+          createdAt: Date.now(), // 设置创建时间戳
+          tags: userGroup && userGroup.trim() ? [userGroup] : ['默认'],
+        };
+
+        adminConfig.UserConfig.Users.push(newUser);
+        targetEntry =
+          adminConfig.UserConfig.Users[adminConfig.UserConfig.Users.length - 1];
+        break;
+      }
+      case 'approveRegister': {
+        // 审核通过：从 PendingUsers 取回密码并创建用户
+        if (
+          !adminConfig.UserConfig.PendingUsers ||
+          adminConfig.UserConfig.PendingUsers.length === 0
+        ) {
+          return NextResponse.json({ error: '无待审核用户' }, { status: 400 });
+        }
+        const pendingIndex = adminConfig.UserConfig.PendingUsers.findIndex(
+          (u) => u.username === targetUsername,
+        );
+        if (pendingIndex === -1) {
+          return NextResponse.json(
+            { error: '未找到该待审核用户' },
+            { status: 404 },
+          );
+        }
+        const pending = adminConfig.UserConfig.PendingUsers[pendingIndex];
+        const secret = process.env.PASSWORD || 'site-secret';
+        const decryptedPwd = SimpleCrypto.decrypt(
+          pending.encryptedPassword,
+          secret,
+        );
+
+        await db.registerUser(targetUsername, decryptedPwd);
+        adminConfig.UserConfig.Users.push({
+          username: targetUsername,
+          role: 'user',
+          createdAt: Date.now(),
+          tags: ['默认'], // 为审核通过的用户分配默认用户组
+        });
+        adminConfig.UserConfig.PendingUsers.splice(pendingIndex, 1);
+        break;
+      }
+      case 'rejectRegister': {
+        if (
+          !adminConfig.UserConfig.PendingUsers ||
+          adminConfig.UserConfig.PendingUsers.length === 0
+        ) {
+          return NextResponse.json({ error: '无待审核用户' }, { status: 400 });
+        }
+        const pendingIndex = adminConfig.UserConfig.PendingUsers.findIndex(
+          (u) => u.username === targetUsername,
+        );
+        if (pendingIndex === -1) {
+          return NextResponse.json(
+            { error: '未找到该待审核用户' },
+            { status: 404 },
+          );
+        }
+        adminConfig.UserConfig.PendingUsers.splice(pendingIndex, 1);
+        break;
+      }
+      case 'ban': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+        if (isTargetAdmin) {
+          // 目标是管理员
+          if (operatorRole !== 'owner') {
+            return NextResponse.json(
+              { error: '仅站长可封禁管理员' },
+              { status: 401 },
+            );
+          }
+        }
+        targetEntry.banned = true;
+        break;
+      }
+      case 'unban': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+        if (isTargetAdmin) {
+          if (operatorRole !== 'owner') {
+            return NextResponse.json(
+              { error: '仅站长可操作管理员' },
+              { status: 401 },
+            );
+          }
+        }
+        targetEntry.banned = false;
+        break;
+      }
+      case 'setAdmin': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+        if (targetEntry.role === 'admin') {
+          return NextResponse.json(
+            { error: '该用户已是管理员' },
+            { status: 400 },
+          );
+        }
+        if (operatorRole !== 'owner') {
+          return NextResponse.json(
+            { error: '仅站长可设置管理员' },
+            { status: 401 },
+          );
+        }
+        targetEntry.role = 'admin';
+        break;
+      }
+      case 'cancelAdmin': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+        // 如果用户已经是普通用户，直接返回成功
+        if (targetEntry.role !== 'admin') {
+          // 已经是user，直接返回成功
+          return NextResponse.json({
+            success: true,
+            message: '用户当前不是管理员',
+          });
+        }
+        if (operatorRole !== 'owner') {
+          return NextResponse.json(
+            { error: '仅站长可取消管理员' },
+            { status: 401 },
+          );
+        }
+        targetEntry.role = 'user';
+        break;
+      }
+      case 'changePassword': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+        if (!targetPassword) {
+          return NextResponse.json({ error: '缺少新密码' }, { status: 400 });
+        }
+
+        // 权限检查：不允许修改站长密码
+        if (targetEntry.role === 'owner') {
+          return NextResponse.json(
+            { error: '无法修改站长密码' },
+            { status: 401 },
+          );
+        }
+
+        if (
+          isTargetAdmin &&
+          operatorRole !== 'owner' &&
+          username !== targetUsername
+        ) {
+          return NextResponse.json(
+            { error: '仅站长可修改其他管理员密码' },
+            { status: 401 },
+          );
+        }
+
+        await db.changePassword(targetUsername, targetPassword);
+        break;
+      }
+      case 'deleteUser': {
+        // targetEntry 应该已经在前面被查找过了
+
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+
+        // 权限检查：站长可删除所有用户（除了自己），管理员可删除普通用户
+        if (username === targetUsername) {
+          return NextResponse.json({ error: '不能删除自己' }, { status: 400 });
+        }
+
+        if (isTargetAdmin && operatorRole !== 'owner') {
+          return NextResponse.json(
+            { error: '仅站长可删除管理员' },
+            { status: 401 },
+          );
+        }
+
+        // 尝试从数据库删除用户（如果存在）
+        try {
+          await db.deleteUser(targetUsername);
+        } catch (error) {
+          // 用户可能不存在于数据库中（例如重置后），只从配置中删除
+          logger.error(`删除用户 ${targetUsername} 失败:`, error);
+          logger.log(`用户 ${targetUsername} 不存在于数据库中，仅从配置中删除`);
+        }
+
+        // 从配置中移除用户
+        const userIndex = adminConfig.UserConfig.Users.findIndex(
+          (u) => u.username === targetUsername,
+        );
+        if (userIndex > -1) {
+          adminConfig.UserConfig.Users.splice(userIndex, 1);
+        }
+
+        break;
+      }
+      case 'updateUserApis': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+
+        const { videoSources } = body as { videoSources?: string[] };
+
+        // 权限检查：站长可配置所有人的采集源，管理员可配置普通用户和自己的采集源
+        if (
+          isTargetAdmin &&
+          operatorRole !== 'owner' &&
+          username !== targetUsername
+        ) {
+          return NextResponse.json(
+            { error: '仅站长可配置其他管理员的采集源' },
+            { status: 401 },
+          );
+        }
+
+        // 更新用户的采集源权限
+        if (videoSources && videoSources.length > 0) {
+          targetEntry.videoSources = videoSources;
+          targetEntry.videoSourcesInherited = false; // 用户独立配置，标记为非继承
+        } else {
+          // 如果为空数组或未提供，则删除该字段，表示无限制
+          delete targetEntry.videoSources;
+          delete targetEntry.videoSourcesInherited;
+        }
+
+        break;
+      }
+      case 'userGroup': {
+        // 用户组管理操作
+        const { groupAction, groupName, videoSources } = body as {
+          groupAction: 'add' | 'edit' | 'delete';
+          groupName: string;
+          videoSources?: string[];
+        };
+
+        if (!adminConfig.UserConfig.Tags) {
+          adminConfig.UserConfig.Tags = [];
+        }
+
+        switch (groupAction) {
+          case 'add': {
+            // 检查用户组是否已存在
+            if (adminConfig.UserConfig.Tags.find((t) => t.name === groupName)) {
+              return NextResponse.json(
+                { error: '用户组已存在' },
+                { status: 400 },
+              );
+            }
+            adminConfig.UserConfig.Tags.push({
+              name: groupName,
+              videoSources: videoSources || [],
+            });
+            break;
+          }
+          case 'edit': {
+            const groupIndex = adminConfig.UserConfig.Tags.findIndex(
+              (t) => t.name === groupName,
+            );
+            if (groupIndex === -1) {
+              return NextResponse.json(
+                { error: '用户组不存在' },
+                { status: 404 },
+              );
+            }
+            adminConfig.UserConfig.Tags[groupIndex].videoSources =
+              videoSources || [];
+            break;
+          }
+          case 'delete': {
+            const groupIndex = adminConfig.UserConfig.Tags.findIndex(
+              (t) => t.name === groupName,
+            );
+            if (groupIndex === -1) {
+              return NextResponse.json(
+                { error: '用户组不存在' },
+                { status: 404 },
+              );
+            }
+
+            // 查找使用该用户组的所有用户
+            const affectedUsers: string[] = [];
+            adminConfig.UserConfig.Users.forEach((user) => {
+              if (user.tags && user.tags.includes(groupName)) {
+                affectedUsers.push(user.username);
+                // 从用户的tags中移除该用户组
+                user.tags = user.tags.filter((tag) => tag !== groupName);
+                // 如果用户没有其他标签了，删除tags字段
+                if (user.tags.length === 0) {
+                  delete user.tags;
+                }
+              }
+            });
+
+            // 删除用户组
+            adminConfig.UserConfig.Tags.splice(groupIndex, 1);
+
+            // 记录删除操作的影响
+            logger.log(
+              `删除用户组 "${groupName}"，影响用户: ${
+                affectedUsers.length > 0 ? affectedUsers.join(', ') : '无'
+              }`,
+            );
+
+            break;
+          }
+          default:
+            return NextResponse.json(
+              { error: '未知的用户组操作' },
+              { status: 400 },
+            );
+        }
+        break;
+      }
+      case 'updateUserGroups': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+
+        const { userGroups } = body as { userGroups: string[] };
+
+        // 权限检查：站长可配置所有人的用户组，管理员可配置普通用户和自己的用户组
+        if (
+          isTargetAdmin &&
+          operatorRole !== 'owner' &&
+          username !== targetUsername
+        ) {
+          return NextResponse.json(
+            { error: '仅站长可配置其他管理员的用户组' },
+            { status: 400 },
+          );
+        }
+
+        // 更新用户的用户组
+        if (userGroups && userGroups.length > 0) {
+          targetEntry.tags = userGroups;
+          // 清除用户的独立配置，让用户继承用户组的配置
+          delete targetEntry.videoSources;
+          delete targetEntry.features;
+        } else {
+          // 如果为空数组或未提供，则删除该字段，表示无用户组
+          delete targetEntry.tags;
+        }
+
+        break;
+      }
+      case 'batchUpdateUserGroups': {
+        const { usernames, userGroups } = body as {
+          usernames: string[];
+          userGroups: string[];
+        };
+
+        if (!usernames || !Array.isArray(usernames) || usernames.length === 0) {
+          return NextResponse.json(
+            { error: '缺少用户名列表' },
+            { status: 400 },
+          );
+        }
+
+        // 权限检查：站长可批量配置所有人的用户组，管理员只能批量配置普通用户
+        if (operatorRole !== 'owner') {
+          for (const targetUsername of usernames) {
+            const targetUser = adminConfig.UserConfig.Users.find(
+              (u) => u.username === targetUsername,
+            );
+            if (
+              targetUser &&
+              targetUser.role === 'admin' &&
+              targetUsername !== username
+            ) {
+              return NextResponse.json(
+                { error: `管理员无法操作其他管理员 ${targetUsername}` },
+                { status: 400 },
+              );
+            }
+          }
+        }
+
+        // 批量更新用户组
+        for (const targetUsername of usernames) {
+          const targetUser = adminConfig.UserConfig.Users.find(
+            (u) => u.username === targetUsername,
+          );
+          if (targetUser) {
+            if (userGroups && userGroups.length > 0) {
+              targetUser.tags = userGroups;
+              // 清除用户的独立配置，让用户继承用户组的配置
+              delete targetUser.videoSources;
+              delete targetUser.features;
+            } else {
+              // 如果为空数组或未提供，则删除该字段，表示无用户组
+              delete targetUser.tags;
+            }
+          }
+        }
+
+        break;
+      }
+      case 'getPassword': {
+        if (!targetEntry) {
+          return NextResponse.json(
+            { error: '目标用户不存在' },
+            { status: 404 },
+          );
+        }
+
+        // 权限检查：站长可获取所有用户密码，管理员只能获取普通用户密码
+        if (isTargetAdmin && operatorRole !== 'owner') {
+          return NextResponse.json(
+            { error: '仅站长可获取管理员密码' },
+            { status: 401 },
+          );
+        }
+
+        // 获取用户密码
+        const password = await db.getUserPassword(targetUsername);
+
+        return NextResponse.json({
+          password: password || '无密码',
+        });
+      }
+      default:
+        return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    }
+
+    // 将更新后的配置写入数据库
+    await db.saveAdminConfig(adminConfig);
+
+    // 清除配置缓存，强制下次重新从数据库读取
+    clearConfigCache();
+
+    return NextResponse.json(
+      { ok: true },
+      {
+        headers: {
+          'Cache-Control': 'no-store', // 管理员配置不缓存
+        },
+      },
+    );
+  } catch (error) {
+    logger.error('用户管理操作失败:', error);
+    return NextResponse.json(
+      {
+        error: '用户管理操作失败',
+        details: (error as Error).message,
+      },
+      { status: 500 },
+    );
+  }
+}

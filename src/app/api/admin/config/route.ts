@@ -1,0 +1,172 @@
+import { revalidatePath } from 'next/cache';
+import { NextRequest, NextResponse } from 'next/server';
+
+import { AdminConfig } from '@/lib/admin.types';
+import { getAuthInfoFromCookie } from '@/lib/auth';
+import { clearConfigCache, getConfig } from '@/lib/config';
+import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
+
+export const runtime = 'nodejs';
+
+export async function GET(request: NextRequest) {
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  if (storageType === 'localstorage') {
+    return NextResponse.json(
+      {
+        error: '不支持本地存储进行管理员配置',
+      },
+      { status: 400 },
+    );
+  }
+
+  const authInfo = getAuthInfoFromCookie(request);
+  if (!authInfo || !authInfo.username) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const username = authInfo.username;
+
+  try {
+    const config = await getConfig();
+    const result = {
+      Role: 'owner',
+      Config: config,
+    };
+    if (username === process.env.USERNAME) {
+      result.Role = 'owner';
+    } else {
+      const user = config.UserConfig.Users.find((u) => u.username === username);
+      if (user && user.role === 'admin' && !user.banned) {
+        result.Role = 'admin';
+      } else {
+        return NextResponse.json(
+          { error: '你是管理员吗你就访问？' },
+          { status: 401 },
+        );
+      }
+    }
+
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'no-store', // 管理员配置不缓存
+      },
+    });
+  } catch (error) {
+    logger.error('获取管理员配置失败:', error);
+    return NextResponse.json(
+      {
+        error: '获取管理员配置失败',
+        details: (error as Error).message,
+      },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  if (storageType === 'localstorage') {
+    return NextResponse.json(
+      {
+        error: '不支持本地存储进行管理员配置',
+      },
+      { status: 400 },
+    );
+  }
+
+  const authInfo = getAuthInfoFromCookie(request);
+  if (!authInfo || !authInfo.username) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const username = authInfo.username;
+
+  // 只有站长可以修改配置
+  if (username !== process.env.USERNAME) {
+    return NextResponse.json(
+      { error: '只有站长可以修改配置' },
+      { status: 403 },
+    );
+  }
+
+  try {
+    const newConfig: AdminConfig = await request.json();
+
+    // 先获取完整配置
+    const adminConfig = await getConfig();
+
+    // 只更新传入的部分，保留其他配置
+    if (newConfig.UserConfig) {
+      adminConfig.UserConfig = newConfig.UserConfig;
+    }
+    if (newConfig.SiteConfig) {
+      adminConfig.SiteConfig = newConfig.SiteConfig;
+    }
+    if (newConfig.SourceConfig) {
+      adminConfig.SourceConfig = newConfig.SourceConfig;
+    }
+    if (newConfig.CustomCategories) {
+      adminConfig.CustomCategories = newConfig.CustomCategories;
+    }
+    if (newConfig.LiveConfig) {
+      adminConfig.LiveConfig = newConfig.LiveConfig;
+    }
+    if (newConfig.NetDiskConfig) {
+      adminConfig.NetDiskConfig = newConfig.NetDiskConfig;
+    }
+    if (newConfig.AIRecommendConfig) {
+      adminConfig.AIRecommendConfig = newConfig.AIRecommendConfig;
+    }
+    if (newConfig.TVBoxSecurityConfig) {
+      adminConfig.TVBoxSecurityConfig = newConfig.TVBoxSecurityConfig;
+    }
+    if (newConfig.ConfigFile !== undefined) {
+      adminConfig.ConfigFile = newConfig.ConfigFile;
+    }
+    if (newConfig.ConfigSubscribtion) {
+      adminConfig.ConfigSubscribtion = newConfig.ConfigSubscribtion;
+    }
+    if (newConfig.YellowWords !== undefined) {
+      adminConfig.YellowWords = newConfig.YellowWords;
+    }
+
+    // 保存完整配置
+    await db.saveAdminConfig(adminConfig);
+
+    // 清除缓存，强制下次重新从数据库读取
+    clearConfigCache();
+
+    // 清除18+词汇缓存，确保新添加的关键词立即生效
+    const { clearYellowWordsCache } = await import('@/lib/yellow');
+    clearYellowWordsCache();
+
+    // 清除TVBox缓存，确保新的过滤词立即生效
+    const { clearTVBoxCache } = await import('@/lib/tvbox-cache');
+    await clearTVBoxCache();
+
+    // 🔥 刷新所有页面的缓存，使新配置立即生效（无需重启Docker）
+    revalidatePath('/', 'layout');
+
+    // 🔥 添加 no-cache headers，防止 Docker 环境下 Next.js Router Cache 问题
+    // 参考：https://github.com/vercel/next.js/issues/61184
+    return NextResponse.json(
+      { success: true },
+      {
+        headers: {
+          'Cache-Control':
+            'no-store, no-cache, must-revalidate, proxy-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      },
+    );
+  } catch (error) {
+    logger.error('保存管理员配置失败:', error);
+    return NextResponse.json(
+      {
+        error: '保存配置失败',
+        details: (error as Error).message,
+      },
+      { status: 500 },
+    );
+  }
+}
